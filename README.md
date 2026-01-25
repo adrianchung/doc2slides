@@ -4,7 +4,7 @@ Convert Google Docs into executive-ready Google Slides presentations using AI.
 
 ## Features
 
-- **AI-Powered Summarization**: Uses Claude to extract key points optimized for executive review
+- **AI-Powered Summarization**: Uses Google Gemini to extract key points optimized for executive review
 - **Integrated Experience**: Works directly within Google Docs as a Workspace Add-on
 - **Customizable Output**: Configure number of slides and provide custom summarization instructions
 - **Professional Results**: Clean, bullet-point slides focused on decisions, metrics, and outcomes
@@ -12,7 +12,7 @@ Convert Google Docs into executive-ready Google Slides presentations using AI.
 ## Architecture
 
 ```
-Google Docs Add-on  →  Node.js Backend  →  Claude API (summarize)
+Google Docs Add-on  →  Node.js Backend  →  Gemini API (summarize)
                                         →  Google Slides API (create)
 ```
 
@@ -24,7 +24,7 @@ Google Docs Add-on  →  Node.js Backend  →  Claude API (summarize)
 cd backend
 npm install
 cp .env.example .env
-# Edit .env with your Anthropic API key
+# Edit .env with your Gemini API key (get one free at aistudio.google.com/app/apikey)
 npm run dev
 ```
 
@@ -38,7 +38,7 @@ See [apps-script/README.md](apps-script/README.md) for detailed instructions.
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key for Claude |
+| `GEMINI_API_KEY` | Your Google Gemini API key ([get one free](https://aistudio.google.com/app/apikey)) |
 | `PORT` | Server port (default: 3000) |
 
 ### Google Cloud Setup
@@ -57,7 +57,7 @@ doc2slides/
 │   │   ├── routes/
 │   │   │   └── generate.ts  # POST /generate endpoint
 │   │   ├── services/
-│   │   │   ├── claude.ts    # Claude API integration
+│   │   │   ├── claude.ts    # Gemini API integration
 │   │   │   ├── slides.ts    # Google Slides creation
 │   │   │   └── prompts.ts   # Prompt templates
 │   │   └── types/
