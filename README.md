@@ -99,6 +99,19 @@ Create a presentation from document content.
 }
 ```
 
+## Testing
+
+```bash
+cd backend
+npm test          # Run all tests
+npm run test:watch  # Watch mode
+```
+
+Tests cover:
+- Prompt generation and formatting
+- API endpoint validation
+- Request/response handling
+
 ## Deployment Options
 
 ### Backend
