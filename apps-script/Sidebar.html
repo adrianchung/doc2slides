@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 14px;
+      padding: 16px;
+      margin: 0;
+      color: #202124;
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 500;
+      margin: 0 0 16px 0;
+      color: #202124;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #5f6368;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, textarea:focus {
+      outline: none;
+      border-color: #4285f4;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 6px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 24px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #3367d6;
+    }
+
+    button:disabled {
+      background-color: #dadce0;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .status.loading {
+      background-color: #e8f0fe;
+      color: #1967d2;
+    }
+
+    .status.success {
+      background-color: #e6f4ea;
+      color: #137333;
+    }
+
+    .status.error {
+      background-color: #fce8e6;
+      color: #c5221f;
+    }
+
+    .status a {
+      color: inherit;
+      font-weight: 500;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #1967d2;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .info-box {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #5f6368;
+    }
+  </style>
+</head>
+<body>
+  <h2>Generate Executive Slides</h2>
+
+  <div class="info-box">
+    Transform this document into a professional presentation optimized for executive review.
+  </div>
+
+  <div class="form-group">
+    <label for="slideCount">Number of Slides</label>
+    <select id="slideCount">
+      <option value="3">3 slides - Brief overview</option>
+      <option value="5" selected>5 slides - Standard</option>
+      <option value="7">7 slides - Detailed</option>
+      <option value="10">10 slides - Comprehensive</option>
+    </select>
+    <div class="help-text">Choose based on meeting length and content depth</div>
+  </div>
+
+  <div class="form-group">
+    <label for="customPrompt">Custom Instructions (Optional)</label>
+    <textarea id="customPrompt" placeholder="e.g., Focus on Q4 metrics and customer feedback. Emphasize cost savings."></textarea>
+    <div class="help-text">Add specific guidance for how content should be summarized</div>
+  </div>
+
+  <button id="generateBtn" onclick="generateSlides()">Generate Slides</button>
+
+  <div id="status" class="status" style="display: none;"></div>
+
+  <script>
+    function generateSlides() {
+      const slideCount = parseInt(document.getElementById('slideCount').value);
+      const customPrompt = document.getElementById('customPrompt').value.trim();
+      const btn = document.getElementById('generateBtn');
+      const status = document.getElementById('status');
+
+      // Show loading state
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      status.style.display = 'block';
+      status.className = 'status loading';
+      status.innerHTML = '<span class="spinner"></span>Analyzing document and creating slides...';
+
+      const config = {
+        slideCount: slideCount,
+        customPrompt: customPrompt
+      };
+
+      google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(onError)
+        .generateSlides(config);
+    }
+
+    function onSuccess(result) {
+      const btn = document.getElementById('generateBtn');
+      const status = document.getElementById('status');
+
+      btn.disabled = false;
+      btn.textContent = 'Generate Slides';
+
+      if (result.success) {
+        status.className = 'status success';
+        status.innerHTML = 'Slides created! <a href="' + result.slidesUrl + '" target="_blank">Open Presentation</a>';
+      } else {
+        status.className = 'status error';
+        status.textContent = 'Error: ' + result.error;
+      }
+    }
+
+    function onError(error) {
+      const btn = document.getElementById('generateBtn');
+      const status = document.getElementById('status');
+
+      btn.disabled = false;
+      btn.textContent = 'Generate Slides';
+      status.className = 'status error';
+      status.textContent = 'Error: ' + error.message;
+    }
+  </script>
+</body>
+</html>
