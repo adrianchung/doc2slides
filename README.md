@@ -20,17 +20,41 @@ Google Docs Add-on  →  Node.js Backend  →  Gemini API (summarize)
 
 ## Quick Start
 
-### 1. Deploy the Backend
+### 1. Start the Backend Server
 
 ```bash
+# From the project root, navigate to the backend directory
 cd backend
+
+# Install dependencies
 npm install
+
+# Set up environment variables
 cp .env.example .env
 # Edit .env with your Gemini API key (get one free at aistudio.google.com/app/apikey)
+
+# Start the development server
 npm run dev
 ```
 
-### 2. Deploy the Add-on
+The backend will be available at **http://localhost:3000**.
+
+### 2. Start the Frontend Server
+
+```bash
+# From the project root, navigate to the frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+
+The frontend will be available at **http://localhost:5173**.
+
+### 3. Deploy the Add-on (Optional)
 
 See [apps-script/README.md](apps-script/README.md) for detailed instructions.
 
@@ -53,7 +77,7 @@ See [apps-script/README.md](apps-script/README.md) for detailed instructions.
 
 ```
 doc2slides/
-├── backend/                 # Node.js API server
+├── backend/                 # Node.js API server (port 3000)
 │   ├── src/
 │   │   ├── index.ts         # Express app entry
 │   │   ├── routes/
@@ -64,6 +88,13 @@ doc2slides/
 │   │   │   └── prompts.ts   # Prompt templates
 │   │   └── types/
 │   │       └── index.ts     # TypeScript interfaces
+│   └── package.json
+│
+├── frontend/                # React frontend (port 5173)
+│   ├── src/
+│   │   ├── App.tsx          # Main React component
+│   │   └── main.tsx         # React entry point
+│   ├── index.html
 │   └── package.json
 │
 ├── apps-script/             # Google Workspace Add-on
@@ -103,9 +134,19 @@ Create a presentation from document content.
 
 ## Testing
 
+### Backend Tests
+
 ```bash
 cd backend
-npm test          # Run all tests
+npm test            # Run all tests
+npm run test:watch  # Watch mode
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test            # Run all tests
 npm run test:watch  # Watch mode
 ```
 
@@ -113,6 +154,7 @@ Tests cover:
 - Prompt generation and formatting
 - API endpoint validation
 - Request/response handling
+- React component rendering
 
 ## Deployment Options
 
