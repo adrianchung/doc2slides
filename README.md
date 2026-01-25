@@ -171,3 +171,13 @@ Tests cover:
 ## License
 
 MIT
+
+---
+
+```
+  /\_/\
+ ( o.o )
+  > ^ <   Meow! Thanks for stopping by! Have a purrfect day!
+ /|   |\
+(_|   |_)
+```
