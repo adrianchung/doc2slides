@@ -9,6 +9,8 @@ Convert Google Docs into executive-ready Google Slides presentations using AI.
 - **Customizable Output**: Configure number of slides and provide custom summarization instructions
 - **Professional Results**: Clean, bullet-point slides focused on decisions, metrics, and outcomes
 
+![Doc2Slides Example](example.png)
+
 ## Architecture
 
 ```
