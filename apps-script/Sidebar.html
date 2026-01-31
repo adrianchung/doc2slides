@@ -62,11 +62,15 @@
       margin-top: 6px;
     }
 
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
     button {
-      width: 100%;
-      padding: 12px 24px;
-      background-color: #4285f4;
-      color: white;
+      flex: 1;
+      padding: 12px 16px;
       border: none;
       border-radius: 8px;
       font-size: 14px;
@@ -75,12 +79,26 @@
       transition: background-color 0.2s;
     }
 
-    button:hover:not(:disabled) {
+    button.primary {
+      background-color: #4285f4;
+      color: white;
+    }
+
+    button.primary:hover:not(:disabled) {
       background-color: #3367d6;
     }
 
+    button.secondary {
+      background-color: #f1f3f4;
+      color: #202124;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background-color: #e8eaed;
+    }
+
     button:disabled {
-      background-color: #dadce0;
+      opacity: 0.6;
       cursor: not-allowed;
     }
 
@@ -135,6 +153,61 @@
       font-size: 13px;
       color: #5f6368;
     }
+
+    .preview-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #dadce0;
+    }
+
+    .preview-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #202124;
+    }
+
+    .slide-preview {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+
+    .slide-preview h4 {
+      font-size: 13px;
+      font-weight: 500;
+      margin: 0 0 8px 0;
+      color: #202124;
+    }
+
+    .slide-preview ul {
+      margin: 0;
+      padding-left: 20px;
+      font-size: 12px;
+      color: #5f6368;
+    }
+
+    .slide-preview li {
+      margin-bottom: 4px;
+    }
+
+    .connection-status {
+      font-size: 11px;
+      color: #5f6368;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #dadce0;
+      text-align: center;
+    }
+
+    .connection-status.connected {
+      color: #137333;
+    }
+
+    .connection-status.disconnected {
+      color: #c5221f;
+    }
   </style>
 </head>
 <body>
@@ -161,59 +234,190 @@
     <div class="help-text">Add specific guidance for how content should be summarized</div>
   </div>
 
-  <button id="generateBtn" onclick="generateSlides()">Generate Slides</button>
+  <div class="button-group">
+    <button id="previewBtn" class="secondary" onclick="previewSlides()">Preview</button>
+    <button id="generateBtn" class="primary" onclick="generateSlides()">Generate</button>
+  </div>
 
   <div id="status" class="status" style="display: none;"></div>
 
+  <div id="previewSection" class="preview-section" style="display: none;">
+    <div class="preview-title">Slide Preview</div>
+    <div id="previewContent"></div>
+  </div>
+
+  <div id="connectionStatus" class="connection-status">Checking connection...</div>
+
   <script>
-    function generateSlides() {
-      const slideCount = parseInt(document.getElementById('slideCount').value);
-      const customPrompt = document.getElementById('customPrompt').value.trim();
-      const btn = document.getElementById('generateBtn');
-      const status = document.getElementById('status');
+    // Check connection on load
+    document.addEventListener('DOMContentLoaded', function() {
+      checkConnection();
+    });
 
-      // Show loading state
-      btn.disabled = true;
-      btn.textContent = 'Generating...';
-      status.style.display = 'block';
-      status.className = 'status loading';
-      status.innerHTML = '<span class="spinner"></span>Analyzing document and creating slides...';
-
-      const config = {
-        slideCount: slideCount,
-        customPrompt: customPrompt
-      };
-
+    function checkConnection() {
       google.script.run
-        .withSuccessHandler(onSuccess)
-        .withFailureHandler(onError)
-        .generateSlides(config);
+        .withSuccessHandler(onConnectionResult)
+        .withFailureHandler(onConnectionError)
+        .testConnection();
     }
 
-    function onSuccess(result) {
-      const btn = document.getElementById('generateBtn');
-      const status = document.getElementById('status');
-
-      btn.disabled = false;
-      btn.textContent = 'Generate Slides';
-
+    function onConnectionResult(result) {
+      const statusEl = document.getElementById('connectionStatus');
       if (result.success) {
-        status.className = 'status success';
-        status.innerHTML = 'Slides created! <a href="' + result.slidesUrl + '" target="_blank">Open Presentation</a>';
+        statusEl.className = 'connection-status connected';
+        statusEl.textContent = 'Connected to server';
       } else {
-        status.className = 'status error';
-        status.textContent = 'Error: ' + result.error;
+        statusEl.className = 'connection-status disconnected';
+        statusEl.textContent = 'Server unavailable: ' + result.message;
       }
     }
 
-    function onError(error) {
-      const btn = document.getElementById('generateBtn');
-      const status = document.getElementById('status');
+    function onConnectionError(error) {
+      const statusEl = document.getElementById('connectionStatus');
+      statusEl.className = 'connection-status disconnected';
+      statusEl.textContent = 'Connection check failed';
+    }
 
-      btn.disabled = false;
-      btn.textContent = 'Generate Slides';
+    function getConfig() {
+      return {
+        slideCount: parseInt(document.getElementById('slideCount').value),
+        customPrompt: document.getElementById('customPrompt').value.trim()
+      };
+    }
+
+    function setButtonsDisabled(disabled) {
+      document.getElementById('generateBtn').disabled = disabled;
+      document.getElementById('previewBtn').disabled = disabled;
+    }
+
+    function showLoading(message) {
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      status.className = 'status loading';
+      status.innerHTML = '<span class="spinner"></span>' + message;
+    }
+
+    function showSuccess(message) {
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      status.className = 'status success';
+      status.innerHTML = message;
+    }
+
+    function showError(message) {
+      const status = document.getElementById('status');
+      status.style.display = 'block';
       status.className = 'status error';
-      status.textContent = 'Error: ' + error.message;
+      status.textContent = 'Error: ' + message;
+    }
+
+    function generateSlides() {
+      setButtonsDisabled(true);
+      document.getElementById('generateBtn').textContent = 'Generating...';
+      showLoading('Analyzing document and creating slides...');
+      document.getElementById('previewSection').style.display = 'none';
+
+      google.script.run
+        .withSuccessHandler(onGenerateSuccess)
+        .withFailureHandler(onGenerateError)
+        .generateSlides(getConfig());
+    }
+
+    function onGenerateSuccess(result) {
+      setButtonsDisabled(false);
+      document.getElementById('generateBtn').textContent = 'Generate';
+
+      if (result.success) {
+        if (isValidSlidesUrl(result.slidesUrl)) {
+          showSuccess('Slides created! <a href="' + escapeHtml(result.slidesUrl) + '" target="_blank">Open Presentation</a>');
+        } else {
+          showSuccess('Slides created successfully!');
+        }
+      } else {
+        showError(result.error);
+      }
+    }
+
+    function onGenerateError(error) {
+      setButtonsDisabled(false);
+      document.getElementById('generateBtn').textContent = 'Generate';
+      showError(error.message || 'An unexpected error occurred');
+    }
+
+    function previewSlides() {
+      setButtonsDisabled(true);
+      document.getElementById('previewBtn').textContent = 'Loading...';
+      showLoading('Generating preview...');
+      document.getElementById('previewSection').style.display = 'none';
+
+      google.script.run
+        .withSuccessHandler(onPreviewSuccess)
+        .withFailureHandler(onPreviewError)
+        .previewSlides(getConfig());
+    }
+
+    function onPreviewSuccess(result) {
+      setButtonsDisabled(false);
+      document.getElementById('previewBtn').textContent = 'Preview';
+      document.getElementById('status').style.display = 'none';
+
+      if (result.success && result.structure) {
+        displayPreview(result.structure);
+      } else {
+        showError(result.error || 'Failed to generate preview');
+      }
+    }
+
+    function onPreviewError(error) {
+      setButtonsDisabled(false);
+      document.getElementById('previewBtn').textContent = 'Preview';
+      showError(error.message || 'An unexpected error occurred');
+    }
+
+    function displayPreview(structure) {
+      const previewSection = document.getElementById('previewSection');
+      const previewContent = document.getElementById('previewContent');
+
+      let html = '';
+
+      if (structure.title) {
+        html += '<div class="slide-preview"><h4>Title: ' + escapeHtml(structure.title) + '</h4></div>';
+      }
+
+      if (structure.slides && structure.slides.length > 0) {
+        structure.slides.forEach(function(slide, index) {
+          html += '<div class="slide-preview">';
+          html += '<h4>Slide ' + (index + 1) + ': ' + escapeHtml(slide.title) + '</h4>';
+          if (slide.bullets && slide.bullets.length > 0) {
+            html += '<ul>';
+            slide.bullets.forEach(function(bullet) {
+              html += '<li>' + escapeHtml(bullet) + '</li>';
+            });
+            html += '</ul>';
+          }
+          html += '</div>';
+        });
+      }
+
+      previewContent.innerHTML = html;
+      previewSection.style.display = 'block';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function isValidSlidesUrl(url) {
+      if (!url || typeof url !== 'string') return false;
+      try {
+        const parsed = new URL(url);
+        return parsed.hostname === 'docs.google.com' &&
+               parsed.pathname.startsWith('/presentation/');
+      } catch {
+        return false;
+      }
     }
   </script>
 </body>
