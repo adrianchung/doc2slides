@@ -229,6 +229,18 @@
   </div>
 
   <div class="form-group">
+    <label for="template">Slide Template</label>
+    <select id="template">
+      <option value="modern" selected>Modern - Clean, minimalist with blue accents</option>
+      <option value="corporate">Corporate - Professional with dark headers</option>
+      <option value="creative">Creative - Bold colors and dynamic style</option>
+      <option value="minimal">Minimal - Simple black and white</option>
+      <option value="executive">Executive - Traditional presentation style</option>
+    </select>
+    <div class="help-text">Choose a visual style for your presentation</div>
+  </div>
+
+  <div class="form-group">
     <label for="customPrompt">Custom Instructions (Optional)</label>
     <textarea id="customPrompt" placeholder="e.g., Focus on Q4 metrics and customer feedback. Emphasize cost savings."></textarea>
     <div class="help-text">Add specific guidance for how content should be summarized</div>
@@ -281,6 +293,7 @@
     function getConfig() {
       return {
         slideCount: parseInt(document.getElementById('slideCount').value),
+        template: document.getElementById('template').value,
         customPrompt: document.getElementById('customPrompt').value.trim()
       };
     }

@@ -196,6 +196,7 @@ function generateSlides(config) {
     documentContent: docData.content,
     documentTitle: docData.title,
     slideCount: config.slideCount,
+    template: config.template || 'modern',
     customPrompt: config.customPrompt || '',
     userEmail: docData.userEmail,
     accessToken: accessToken

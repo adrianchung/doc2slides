@@ -1,10 +1,11 @@
 import { google } from "googleapis";
-import { PresentationStructure } from "../types/index.js";
+import { PresentationStructure, SlideTemplate, SLIDE_TEMPLATES, TemplateConfig } from "../types/index.js";
 
 interface CreatePresentationParams {
   structure: PresentationStructure;
   accessToken: string;
   userEmail: string;
+  template?: SlideTemplate;
 }
 
 interface CreatePresentationResult {
@@ -12,10 +13,15 @@ interface CreatePresentationResult {
   slidesId: string;
 }
 
+function getTemplateConfig(template?: SlideTemplate): TemplateConfig {
+  return SLIDE_TEMPLATES[template || "modern"];
+}
+
 export async function createPresentation(
   params: CreatePresentationParams
 ): Promise<CreatePresentationResult> {
-  const { structure, accessToken } = params;
+  const { structure, accessToken, template } = params;
+  const templateConfig = getTemplateConfig(template);
 
   // Create OAuth2 client with user's access token
   const auth = new google.auth.OAuth2();
@@ -41,8 +47,24 @@ export async function createPresentation(
   // Step 2: Build batch update requests
   const requests: any[] = [];
 
-  // Update title slide
+  // Apply background color to title slide
   if (titleSlideId) {
+    requests.push({
+      updatePageProperties: {
+        objectId: titleSlideId,
+        pageProperties: {
+          pageBackgroundFill: {
+            solidFill: {
+              color: {
+                rgbColor: templateConfig.backgroundColor,
+              },
+            },
+          },
+        },
+        fields: "pageBackgroundFill.solidFill.color",
+      },
+    });
+
     const titleShapeId = presentation.data.slides?.[0]?.pageElements?.find(
       (el) => el.shape?.placeholder?.type === "CENTERED_TITLE" ||
              el.shape?.placeholder?.type === "TITLE"
@@ -54,6 +76,27 @@ export async function createPresentation(
           objectId: titleShapeId,
           text: structure.title,
           insertionIndex: 0,
+        },
+      });
+
+      // Apply title styling
+      requests.push({
+        updateTextStyle: {
+          objectId: titleShapeId,
+          style: {
+            foregroundColor: {
+              opaqueColor: {
+                rgbColor: templateConfig.titleColor,
+              },
+            },
+            bold: true,
+            fontSize: {
+              magnitude: 44,
+              unit: "PT",
+            },
+          },
+          textRange: { type: "ALL" },
+          fields: "foregroundColor,bold,fontSize",
         },
       });
     }
@@ -87,12 +130,50 @@ export async function createPresentation(
       },
     });
 
+    // Apply background color to slide
+    requests.push({
+      updatePageProperties: {
+        objectId: slideId,
+        pageProperties: {
+          pageBackgroundFill: {
+            solidFill: {
+              color: {
+                rgbColor: templateConfig.backgroundColor,
+              },
+            },
+          },
+        },
+        fields: "pageBackgroundFill.solidFill.color",
+      },
+    });
+
     // Add title text
     requests.push({
       insertText: {
         objectId: titleId,
         text: slide.title,
         insertionIndex: 0,
+      },
+    });
+
+    // Apply title styling
+    requests.push({
+      updateTextStyle: {
+        objectId: titleId,
+        style: {
+          foregroundColor: {
+            opaqueColor: {
+              rgbColor: templateConfig.titleColor,
+            },
+          },
+          bold: true,
+          fontSize: {
+            magnitude: 32,
+            unit: "PT",
+          },
+        },
+        textRange: { type: "ALL" },
+        fields: "foregroundColor,bold,fontSize",
       },
     });
 
@@ -103,6 +184,26 @@ export async function createPresentation(
         objectId: bodyId,
         text: bulletText,
         insertionIndex: 0,
+      },
+    });
+
+    // Apply body text styling
+    requests.push({
+      updateTextStyle: {
+        objectId: bodyId,
+        style: {
+          foregroundColor: {
+            opaqueColor: {
+              rgbColor: templateConfig.bodyColor,
+            },
+          },
+          fontSize: {
+            magnitude: 18,
+            unit: "PT",
+          },
+        },
+        textRange: { type: "ALL" },
+        fields: "foregroundColor,fontSize",
       },
     });
 

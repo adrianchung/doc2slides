@@ -1,9 +1,19 @@
 import { Router, Request, Response } from "express";
-import { GenerateRequest, GenerateResponse } from "../types/index.js";
+import { GenerateRequest, GenerateResponse, SLIDE_TEMPLATES, SlideTemplate } from "../types/index.js";
 import { summarizeDocument } from "../services/claude.js";
 import { createPresentation } from "../services/slides.js";
 
 export const generateRouter = Router();
+
+// Get available templates
+generateRouter.get("/templates", (_req: Request, res: Response) => {
+  const templates = Object.entries(SLIDE_TEMPLATES).map(([id, config]) => ({
+    id,
+    name: config.name,
+    description: config.description,
+  }));
+  res.json({ templates });
+});
 
 // Preview endpoint - just returns AI-generated content without creating slides
 generateRouter.post("/preview", async (req: Request, res: Response) => {
@@ -72,11 +82,23 @@ generateRouter.post("/", async (req: Request, res: Response) => {
       customPrompt: body.customPrompt,
     });
 
+    // Validate template if provided
+    const validTemplates: SlideTemplate[] = ["modern", "corporate", "creative", "minimal", "executive"];
+    if (body.template && !validTemplates.includes(body.template)) {
+      const response: GenerateResponse = {
+        success: false,
+        error: `Invalid template. Must be one of: ${validTemplates.join(", ")}`,
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     // Step 2: Create Google Slides presentation
     const { slidesUrl, slidesId } = await createPresentation({
       structure: presentationStructure,
       accessToken: body.accessToken,
       userEmail: body.userEmail,
+      template: body.template,
     });
 
     const response: GenerateResponse = {
