@@ -328,7 +328,11 @@
       document.getElementById('generateBtn').textContent = 'Generate';
 
       if (result.success) {
-        showSuccess('Slides created! <a href="' + result.slidesUrl + '" target="_blank">Open Presentation</a>');
+        if (isValidSlidesUrl(result.slidesUrl)) {
+          showSuccess('Slides created! <a href="' + escapeHtml(result.slidesUrl) + '" target="_blank">Open Presentation</a>');
+        } else {
+          showSuccess('Slides created successfully!');
+        }
       } else {
         showError(result.error);
       }
@@ -403,6 +407,17 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function isValidSlidesUrl(url) {
+      if (!url || typeof url !== 'string') return false;
+      try {
+        const parsed = new URL(url);
+        return parsed.hostname === 'docs.google.com' &&
+               parsed.pathname.startsWith('/presentation/');
+      } catch {
+        return false;
+      }
     }
   </script>
 </body>
