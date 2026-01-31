@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 
 interface Slide {
   title: string;
@@ -14,6 +15,19 @@ interface GenerateResponse {
   error?: string;
 }
 
+interface ExportResponse {
+  success: boolean;
+  slidesUrl?: string;
+  slidesId?: string;
+  error?: string;
+}
+
+interface UserInfo {
+  email: string;
+  name: string;
+  picture: string;
+}
+
 function App() {
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
@@ -22,6 +36,84 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Google OAuth state
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<ExportResponse | null>(null);
+
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setAccessToken(tokenResponse.access_token);
+      // Fetch user info
+      try {
+        const userInfoResponse = await fetch(
+          "https://www.googleapis.com/oauth2/v3/userinfo",
+          {
+            headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+          }
+        );
+        const userInfo = await userInfoResponse.json();
+        setUser({
+          email: userInfo.email,
+          name: userInfo.name,
+          picture: userInfo.picture,
+        });
+      } catch (err) {
+        console.error("Failed to fetch user info:", err);
+      }
+    },
+    onError: (error) => {
+      console.error("Login failed:", error);
+      setError("Google sign-in failed. Please try again.");
+    },
+    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file",
+  });
+
+  const handleLogout = () => {
+    googleLogout();
+    setAccessToken(null);
+    setUser(null);
+    setExportResult(null);
+  };
+
+  const handleExportToSlides = async () => {
+    if (!accessToken || !user || !result?.structure) return;
+
+    setExporting(true);
+    setExportResult(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentContent,
+          documentTitle,
+          slideCount,
+          customPrompt: customPrompt || undefined,
+          accessToken,
+          userEmail: user.email,
+        }),
+      });
+
+      const data: ExportResponse = await response.json();
+
+      if (data.success) {
+        setExportResult(data);
+      } else {
+        setError(data.error || "Failed to export to Google Slides");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export to Google Slides");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +154,21 @@ function App() {
       <header>
         <h1>Doc2Slides</h1>
         <p className="subtitle">Convert documents to executive-ready presentations</p>
+        <div className="auth-section">
+          {user ? (
+            <div className="user-info">
+              <img src={user.picture} alt={user.name} className="user-avatar" />
+              <span className="user-name">{user.name}</span>
+              <button onClick={handleLogout} className="logout-button">
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => login()} className="google-login-button">
+              Sign in with Google
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="main-content">
@@ -136,6 +243,34 @@ function App() {
 
           {result?.structure && (
             <div className="slides-preview">
+              <div className="export-section">
+                {exportResult?.slidesUrl ? (
+                  <div className="export-success">
+                    <p>Presentation created successfully!</p>
+                    <a
+                      href={exportResult.slidesUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="slides-link"
+                    >
+                      Open in Google Slides
+                    </a>
+                  </div>
+                ) : user ? (
+                  <button
+                    onClick={handleExportToSlides}
+                    disabled={exporting}
+                    className="export-button"
+                  >
+                    {exporting ? "Exporting..." : "Export to Google Slides"}
+                  </button>
+                ) : (
+                  <p className="login-prompt">
+                    Sign in with Google to export to Google Slides
+                  </p>
+                )}
+              </div>
+
               <div className="slide title-slide">
                 <h3>{result.structure.title}</h3>
               </div>
