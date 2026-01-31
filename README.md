@@ -5,6 +5,7 @@ Convert Google Docs into executive-ready Google Slides presentations using AI.
 ## Features
 
 - **AI-Powered Summarization**: Uses Google Gemini to extract key points optimized for executive review
+- **Export to Google Slides**: Sign in with Google and export presentations directly to your Google Drive
 - **Integrated Experience**: Works directly within Google Docs as a Workspace Add-on
 - **Customizable Output**: Configure number of slides and provide custom summarization instructions
 - **Professional Results**: Clean, bullet-point slides focused on decisions, metrics, and outcomes
@@ -48,6 +49,10 @@ cd frontend
 # Install dependencies
 npm install
 
+# Set up environment variables (required for Google Slides export)
+cp .env.example .env
+# Edit .env with your Google OAuth Client ID (see Google Cloud Setup below)
+
 # Start the development server
 npm run dev
 ```
@@ -67,11 +72,30 @@ See [apps-script/README.md](apps-script/README.md) for detailed instructions.
 | `GEMINI_API_KEY` | Your Google Gemini API key ([get one free](https://aistudio.google.com/app/apikey)) |
 | `PORT` | Server port (default: 3000) |
 
+### Frontend Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_GOOGLE_CLIENT_ID` | Your Google OAuth Client ID (required for Google Slides export) |
+
 ### Google Cloud Setup
 
+To enable the "Export to Google Slides" feature:
+
 1. Create a project at [console.cloud.google.com](https://console.cloud.google.com)
-2. Enable the Google Slides API
-3. The OAuth flow is handled through Apps Script using the user's credentials
+2. Enable the following APIs:
+   - Google Slides API
+   - Google Drive API
+3. Configure OAuth consent screen:
+   - Go to "APIs & Services" > "OAuth consent screen"
+   - Choose "External" user type
+   - Add the required scopes: `../auth/presentations`, `../auth/drive.file`
+4. Create OAuth 2.0 credentials:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth client ID"
+   - Choose "Web application"
+   - Add `http://localhost:5173` to "Authorized JavaScript origins"
+   - Copy the Client ID to your frontend `.env` file
 
 ## Project Structure
 

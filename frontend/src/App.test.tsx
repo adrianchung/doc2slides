@@ -7,6 +7,20 @@ import App from "./App";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+// Mock Google OAuth
+const mockLogin = vi.fn();
+const mockLogout = vi.fn();
+
+vi.mock("@react-oauth/google", () => ({
+  useGoogleLogin: (options: { onSuccess: (response: { access_token: string }) => void }) => {
+    return () => {
+      mockLogin();
+      options.onSuccess({ access_token: "mock-access-token" });
+    };
+  },
+  googleLogout: () => mockLogout(),
+}));
+
 describe("App", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -158,6 +172,197 @@ describe("App", () => {
           customPrompt: "Focus on metrics",
         }),
       });
+    });
+  });
+
+  it("renders Google sign-in button", () => {
+    render(<App />);
+    expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+  });
+
+  it("shows login prompt when slides are generated but user is not signed in", async () => {
+    const user = userEvent.setup();
+    mockFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          success: true,
+          structure: {
+            title: "Test Presentation",
+            slides: [{ title: "Slide 1", bullets: ["Point A"] }],
+          },
+        }),
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Document Title"), "Test Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Sign in with Google to export to Google Slides")).toBeInTheDocument();
+    });
+  });
+
+  it("shows export button when user is signed in and slides are generated", async () => {
+    const user = userEvent.setup();
+
+    // Mock user info fetch
+    mockFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      })
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({
+            success: true,
+            structure: {
+              title: "Test Presentation",
+              slides: [{ title: "Slide 1", bullets: ["Point A"] }],
+            },
+          }),
+      });
+
+    render(<App />);
+
+    // Sign in
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Test User")).toBeInTheDocument();
+    });
+
+    // Generate slides
+    await user.type(screen.getByLabelText("Document Title"), "Test Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export to Google Slides" })).toBeInTheDocument();
+    });
+  });
+
+  it("exports to Google Slides when export button is clicked", async () => {
+    const user = userEvent.setup();
+
+    // Mock: user info, generate preview, export
+    mockFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      })
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({
+            success: true,
+            structure: {
+              title: "Test Presentation",
+              slides: [{ title: "Slide 1", bullets: ["Point A"] }],
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({
+            success: true,
+            slidesUrl: "https://docs.google.com/presentation/d/123/edit",
+            slidesId: "123",
+          }),
+      });
+
+    render(<App />);
+
+    // Sign in
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Test User")).toBeInTheDocument();
+    });
+
+    // Generate slides
+    await user.type(screen.getByLabelText("Document Title"), "Test Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export to Google Slides" })).toBeInTheDocument();
+    });
+
+    // Export to Google Slides
+    await user.click(screen.getByRole("button", { name: "Export to Google Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Presentation created successfully!")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open in Google Slides" })).toHaveAttribute(
+        "href",
+        "https://docs.google.com/presentation/d/123/edit"
+      );
+    });
+  });
+
+  it("shows sign out button when user is signed in", async () => {
+    const user = userEvent.setup();
+
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+    });
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
+    });
+  });
+
+  it("displays error when export fails", async () => {
+    const user = userEvent.setup();
+
+    mockFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      })
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({
+            success: true,
+            structure: {
+              title: "Test Presentation",
+              slides: [{ title: "Slide 1", bullets: ["Point A"] }],
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({
+            success: false,
+            error: "Failed to create presentation",
+          }),
+      });
+
+    render(<App />);
+
+    // Sign in
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Test User")).toBeInTheDocument();
+    });
+
+    // Generate slides
+    await user.type(screen.getByLabelText("Document Title"), "Test Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export to Google Slides" })).toBeInTheDocument();
+    });
+
+    // Export to Google Slides
+    await user.click(screen.getByRole("button", { name: "Export to Google Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to create presentation")).toBeInTheDocument();
     });
   });
 });
