@@ -49,6 +49,7 @@ export async function createPresentation(
 
   // Apply background color to title slide
   if (titleSlideId) {
+    const titleBg = templateConfig.titleSlideBackgroundColor || templateConfig.backgroundColor;
     requests.push({
       updatePageProperties: {
         objectId: titleSlideId,
@@ -56,7 +57,7 @@ export async function createPresentation(
           pageBackgroundFill: {
             solidFill: {
               color: {
-                rgbColor: templateConfig.backgroundColor,
+                rgbColor: titleBg,
               },
             },
           },
@@ -80,13 +81,14 @@ export async function createPresentation(
       });
 
       // Apply title styling
+      const titleTextColor = templateConfig.titleSlideTextColor || templateConfig.titleColor;
       requests.push({
         updateTextStyle: {
           objectId: titleShapeId,
           style: {
             foregroundColor: {
               opaqueColor: {
-                rgbColor: templateConfig.titleColor,
+                rgbColor: titleTextColor,
               },
             },
             bold: true,
@@ -108,6 +110,7 @@ export async function createPresentation(
     const slideId = `slide_${i}`;
     const titleId = `title_${i}`;
     const bodyId = `body_${i}`;
+    const headerShapeId = `header_${i}`;
 
     // Create new slide with title and body layout
     requests.push({
@@ -147,6 +150,62 @@ export async function createPresentation(
       },
     });
 
+    // Add header rectangle if template has it
+    if (templateConfig.headerColor) {
+      requests.push({
+        createShape: {
+          objectId: headerShapeId,
+          shapeType: "RECTANGLE",
+          elementProperties: {
+            pageObjectId: slideId,
+            size: {
+              height: { magnitude: 60, unit: "PT" },
+              width: { magnitude: 720, unit: "PT" },
+            },
+            transform: {
+              scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: "PT",
+            },
+          },
+        },
+      });
+      requests.push({
+        updateShapeProperties: {
+          objectId: headerShapeId,
+          shapeProperties: {
+            shapeBackgroundFill: {
+              solidFill: { color: { rgbColor: templateConfig.headerColor } },
+            },
+            outline: { propertyState: "NOT_RENDERED" },
+          },
+          fields: "shapeBackgroundFill.solidFill.color,outline",
+        },
+      });
+    }
+
+    // Explicitly position and size the title and body to avoid overlap
+    const titleY = templateConfig.headerColor ? 10 : 25;
+    const bodyY = templateConfig.headerColor ? 80 : 90;
+
+    requests.push({
+      updatePageElementTransform: {
+        objectId: titleId,
+        transform: {
+          scaleX: 1, scaleY: 1, translateX: 36, translateY: titleY, unit: "PT",
+        },
+        applyMode: "ABSOLUTE",
+      },
+    });
+
+    requests.push({
+      updatePageElementTransform: {
+        objectId: bodyId,
+        transform: {
+          scaleX: 1, scaleY: 1, translateX: 36, translateY: bodyY, unit: "PT",
+        },
+        applyMode: "ABSOLUTE",
+      },
+    });
+
     // Add title text
     requests.push({
       insertText: {
@@ -157,18 +216,22 @@ export async function createPresentation(
     });
 
     // Apply title styling
+    const titleTextColor = templateConfig.headerColor 
+      ? (templateConfig.titleColorWithHeader || { red: 1, green: 1, blue: 1 }) 
+      : templateConfig.titleColor;
+
     requests.push({
       updateTextStyle: {
         objectId: titleId,
         style: {
           foregroundColor: {
             opaqueColor: {
-              rgbColor: templateConfig.titleColor,
+              rgbColor: titleTextColor,
             },
           },
           bold: true,
           fontSize: {
-            magnitude: 32,
+            magnitude: 28, // Slightly smaller to fit header
             unit: "PT",
           },
         },

@@ -176,40 +176,64 @@ button:disabled {
   border-radius: 8px;
   padding: 1.25rem;
   position: relative;
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.slide.has-header {
+  padding-top: 1.5rem;
+}
+
+.slide-header-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3.5rem;
+  z-index: 0;
 }
 
 .slide.title-slide {
   background: #1a73e8;
   color: white;
   text-align: center;
-  padding: 2rem;
+  padding: 3rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .slide.title-slide h3 {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   margin: 0;
+  z-index: 1;
 }
 
 .slide-number {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  background: #e0e0e0;
+  background: rgba(224, 224, 224, 0.8);
   color: #666;
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
+  z-index: 2;
 }
 
 .slide h4 {
   color: #1a73e8;
-  margin-bottom: 0.75rem;
-  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  position: relative;
+  z-index: 1;
 }
 
 .slide ul {
   margin: 0;
   padding-left: 1.25rem;
+  position: relative;
+  z-index: 1;
 }
 
 .slide li {

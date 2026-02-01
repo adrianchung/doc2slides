@@ -18,6 +18,10 @@ export interface TemplateConfig {
   titleColor: RgbColor;
   bodyColor: RgbColor;
   backgroundColor: RgbColor;
+  headerColor?: RgbColor;
+  titleSlideBackgroundColor?: RgbColor;
+  titleSlideTextColor?: RgbColor;
+  titleColorWithHeader?: RgbColor;
 }
 
 export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
@@ -27,13 +31,18 @@ export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
     titleColor: { red: 0.1, green: 0.3, blue: 0.6 },
     bodyColor: { red: 0.2, green: 0.2, blue: 0.2 },
     backgroundColor: { red: 1, green: 1, blue: 1 },
+    titleSlideBackgroundColor: { red: 0.1, green: 0.45, blue: 0.91 }, // #1a73e8
+    titleSlideTextColor: { red: 1, green: 1, blue: 1 },
   },
   corporate: {
     name: "Corporate",
     description: "Professional design with dark headers",
-    titleColor: { red: 0.15, green: 0.15, blue: 0.15 },
-    bodyColor: { red: 0.3, green: 0.3, blue: 0.3 },
+    titleColor: { red: 1, green: 1, blue: 1 },
+    bodyColor: { red: 0.2, green: 0.2, blue: 0.2 },
     backgroundColor: { red: 0.98, green: 0.98, blue: 0.98 },
+    headerColor: { red: 0.13, green: 0.13, blue: 0.13 }, // Dark header
+    titleSlideBackgroundColor: { red: 0.13, green: 0.13, blue: 0.13 },
+    titleSlideTextColor: { red: 1, green: 1, blue: 1 },
   },
   creative: {
     name: "Creative",
@@ -41,6 +50,8 @@ export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
     titleColor: { red: 0.8, green: 0.2, blue: 0.4 },
     bodyColor: { red: 0.25, green: 0.25, blue: 0.25 },
     backgroundColor: { red: 1, green: 0.98, blue: 0.95 },
+    titleSlideBackgroundColor: { red: 0.8, green: 0.2, blue: 0.4 },
+    titleSlideTextColor: { red: 1, green: 1, blue: 1 },
   },
   minimal: {
     name: "Minimal",
@@ -48,6 +59,8 @@ export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
     titleColor: { red: 0, green: 0, blue: 0 },
     bodyColor: { red: 0.3, green: 0.3, blue: 0.3 },
     backgroundColor: { red: 1, green: 1, blue: 1 },
+    titleSlideBackgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
+    titleSlideTextColor: { red: 1, green: 1, blue: 1 },
   },
   executive: {
     name: "Executive",
@@ -55,6 +68,10 @@ export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
     titleColor: { red: 0.1, green: 0.2, blue: 0.4 },
     bodyColor: { red: 0.2, green: 0.2, blue: 0.2 },
     backgroundColor: { red: 0.95, green: 0.95, blue: 0.97 },
+    headerColor: { red: 0.1, green: 0.2, blue: 0.4 },
+    titleSlideBackgroundColor: { red: 0.1, green: 0.2, blue: 0.4 },
+    titleSlideTextColor: { red: 1, green: 1, blue: 1 },
+    titleColorWithHeader: { red: 1, green: 1, blue: 1 }, // White text when on header
   },
 };
 

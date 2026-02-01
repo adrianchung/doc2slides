@@ -36,6 +36,47 @@ interface UserInfo {
 type SlideTemplate = "modern" | "corporate" | "creative" | "minimal" | "executive";
 type InputMode = "paste" | "google-docs";
 
+const SLIDE_TEMPLATES: Record<SlideTemplate, any> = {
+  modern: {
+    titleColor: "#1a73e8",
+    bodyColor: "#333",
+    backgroundColor: "#fff",
+    titleSlideBackgroundColor: "#1a73e8",
+    titleSlideTextColor: "#fff",
+  },
+  corporate: {
+    titleColor: "#fff",
+    bodyColor: "#333",
+    backgroundColor: "#fafafa",
+    headerColor: "#202124",
+    titleSlideBackgroundColor: "#202124",
+    titleSlideTextColor: "#fff",
+  },
+  creative: {
+    titleColor: "#c2185b",
+    bodyColor: "#333",
+    backgroundColor: "#fffaf0",
+    titleSlideBackgroundColor: "#c2185b",
+    titleSlideTextColor: "#fff",
+  },
+  minimal: {
+    titleColor: "#000",
+    bodyColor: "#333",
+    backgroundColor: "#fff",
+    titleSlideBackgroundColor: "#111",
+    titleSlideTextColor: "#fff",
+  },
+  executive: {
+    titleColor: "#1a237e",
+    bodyColor: "#333",
+    backgroundColor: "#f5f5f7",
+    headerColor: "#1a237e",
+    titleSlideBackgroundColor: "#1a237e",
+    titleSlideTextColor: "#fff",
+    titleColorWithHeader: "#fff",
+  },
+};
+
 const TEMPLATES: { id: SlideTemplate; name: string; description: string }[] = [
   { id: "modern", name: "Modern", description: "Clean, minimalist design with blue accents" },
   { id: "corporate", name: "Corporate", description: "Professional design with dark headers" },
@@ -506,7 +547,7 @@ function App() {
           )}
 
           {result?.structure && (
-            <div className="slides-preview">
+            <div className={`slides-preview ${template}`}>
               <div className="export-section">
                 {exportResult?.slidesUrl ? (
                   <div className="export-success">
@@ -547,21 +588,51 @@ function App() {
                 </button>
               </div>
 
-              <div className="slide title-slide">
-                <h3>{result.structure.title}</h3>
-              </div>
+              {(() => {
+                const config = SLIDE_TEMPLATES[template];
+                const titleSlideBg = config.titleSlideBackgroundColor || config.backgroundColor;
+                const titleSlideText = config.titleSlideTextColor || config.titleColor;
 
-              {result.structure.slides.map((slide, index) => (
-                <div key={index} className="slide">
-                  <div className="slide-number">Slide {index + 1}</div>
-                  <h4>{slide.title}</h4>
-                  <ul>
-                    {slide.bullets.map((bullet, bulletIndex) => (
-                      <li key={bulletIndex}>{bullet}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                return (
+                  <>
+                    <div 
+                      className="slide title-slide"
+                      style={{ backgroundColor: titleSlideBg, color: titleSlideText }}
+                    >
+                      <h3>{result.structure.title}</h3>
+                    </div>
+
+                    {result.structure.slides.map((slide, index) => {
+                      const hasHeader = !!config.headerColor;
+                      const slideTitleColor = hasHeader 
+                        ? (config.titleColorWithHeader || "#fff") 
+                        : config.titleColor;
+
+                      return (
+                        <div 
+                          key={index} 
+                          className={`slide ${hasHeader ? 'has-header' : ''}`}
+                          style={{ backgroundColor: config.backgroundColor }}
+                        >
+                          {hasHeader && (
+                            <div 
+                              className="slide-header-bar" 
+                              style={{ backgroundColor: config.headerColor }}
+                            />
+                          )}
+                          <div className="slide-number">Slide {index + 1}</div>
+                          <h4 style={{ color: slideTitleColor }}>{slide.title}</h4>
+                          <ul style={{ color: config.bodyColor }}>
+                            {slide.bullets.map((bullet, bulletIndex) => (
+                              <li key={bulletIndex}>{bullet}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
             </div>
           )}
 
