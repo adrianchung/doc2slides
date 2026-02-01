@@ -1,40 +1,55 @@
 # Doc2Slides
 
-Convert Google Docs into executive-ready Google Slides presentations using AI.
+Convert documents into executive-ready Google Slides presentations using AI.
 
 ## Features
 
 - **AI-Powered Summarization**: Uses Google Gemini to extract key points optimized for executive review
+- **Slide Templates**: Choose from 5 professional templates (Modern, Corporate, Creative, Minimal, Executive)
+- **Preview Before Export**: Review AI-generated slide structure before creating the presentation
 - **Export to Google Slides**: Sign in with Google and export presentations directly to your Google Drive
-- **Integrated Experience**: Works directly within Google Docs as a Workspace Add-on
-- **Customizable Output**: Configure number of slides and provide custom summarization instructions
-- **Professional Results**: Clean, bullet-point slides focused on decisions, metrics, and outcomes
-
-![Doc2Slides Example](example.png)
+- **Graceful OAuth Handling**: App works without Google OAuth configured (preview-only mode)
+- **Customizable Output**: Configure number of slides (3-10) and provide custom summarization instructions
 
 ## Architecture
 
 ```
-Google Docs Add-on  →  Node.js Backend  →  Gemini API (summarize)
-                                        →  Google Slides API (create)
+┌─────────────────┐     ┌──────────────────────────────────────────────┐
+│                 │     │              Node.js Backend                 │
+│  React Frontend │────▶│                                              │
+│  (Port 5173)    │     │  /generate/preview ──▶ Gemini API            │
+│                 │     │  /generate ──────────▶ Gemini + Slides API   │
+└─────────────────┘     │  /generate/templates ─▶ Template configs     │
+        │               └──────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────┐
+│  Google OAuth   │  (Optional - required for export)
+│  - Slides API   │
+│  - Drive API    │
+└─────────────────┘
 ```
+
+### Data Flow
+
+1. User pastes document content and selects options (slide count, template)
+2. Frontend calls `/generate/preview` to get AI-generated slide structure
+3. User reviews the preview and optionally signs in with Google
+4. Frontend calls `/generate` with OAuth token to create the actual presentation
+5. Backend uses Gemini API to structure content, then Google Slides API to create presentation
 
 ## Quick Start
 
 ### 1. Start the Backend Server
 
 ```bash
-# From the project root, navigate to the backend directory
 cd backend
-
-# Install dependencies
 npm install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your Gemini API key (get one free at aistudio.google.com/app/apikey)
+# Edit .env with your Gemini API key
 
-# Start the development server
 npm run dev
 ```
 
@@ -43,59 +58,114 @@ The backend will be available at **http://localhost:3000**.
 ### 2. Start the Frontend Server
 
 ```bash
-# From the project root, navigate to the frontend directory
 cd frontend
-
-# Install dependencies
 npm install
 
-# Set up environment variables (required for Google Slides export)
+# (Optional) Set up Google OAuth for export functionality
 cp .env.example .env
-# Edit .env with your Google OAuth Client ID (see Google Cloud Setup below)
+# Edit .env with your Google OAuth Client ID
 
-# Start the development server
 npm run dev
 ```
 
 The frontend will be available at **http://localhost:5173**.
 
-### 3. Deploy the Add-on (Optional)
-
-See [apps-script/README.md](apps-script/README.md) for detailed instructions.
+**Note:** The app works without Google OAuth configured - you can preview slides but won't be able to export to Google Slides.
 
 ## Configuration
 
 ### Backend Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `GEMINI_API_KEY` | Your Google Gemini API key ([get one free](https://aistudio.google.com/app/apikey)) |
-| `PORT` | Server port (default: 3000) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes | Google Gemini API key ([get one free](https://aistudio.google.com/app/apikey)) |
+| `PORT` | No | Server port (default: 3000) |
 
 ### Frontend Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_GOOGLE_CLIENT_ID` | Your Google OAuth Client ID (required for Google Slides export) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth Client ID (required only for Google Slides export) |
 
-### Google Cloud Setup
+## Google OAuth Setup
 
 To enable the "Export to Google Slides" feature:
 
-1. Create a project at [console.cloud.google.com](https://console.cloud.google.com)
-2. Enable the following APIs:
-   - Google Slides API
-   - Google Drive API
-3. Configure OAuth consent screen:
-   - Go to "APIs & Services" > "OAuth consent screen"
-   - Choose "External" user type
-   - Add the required scopes: `../auth/presentations`, `../auth/drive.file`
-4. Create OAuth 2.0 credentials:
-   - Go to "APIs & Services" > "Credentials"
-   - Click "Create Credentials" > "OAuth client ID"
-   - Choose "Web application"
-   - Add `http://localhost:5173` to "Authorized JavaScript origins"
-   - Copy the Client ID to your frontend `.env` file
+### 1. Create a Google Cloud Project
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+
+### 2. Enable Required APIs
+
+In **APIs & Services > Library**, enable:
+- Google Slides API
+- Google Drive API
+
+### 3. Configure OAuth Consent Screen
+
+1. Go to **APIs & Services > OAuth consent screen**
+2. Click **Get Started** or **Configure Consent Screen**
+3. Choose user type (External for public, Internal for organization-only)
+4. Fill in app information:
+   - App name: `Doc2Slides`
+   - User support email: your email
+   - Developer contact: your email
+5. Add scopes:
+   - `https://www.googleapis.com/auth/presentations`
+   - `https://www.googleapis.com/auth/drive.file`
+6. Add test users (required while app is in "Testing" status)
+
+### 4. Create OAuth Client ID
+
+1. Go to **APIs & Services > Credentials**
+2. Click **Create Credentials > OAuth client ID**
+3. Application type: **Web application**
+4. Add **Authorized JavaScript origins**:
+   - `http://localhost:5173`
+   - `http://localhost:5174` (backup port)
+   - `http://localhost:5175` (backup port)
+5. Copy the **Client ID** to `frontend/.env`:
+   ```
+   VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   ```
+
+### OAuth Flow
+
+```
+┌──────────┐    1. Click "Sign in"     ┌─────────────────┐
+│  User    │ ─────────────────────────▶│  Google OAuth   │
+│          │                           │  Consent Screen │
+│          │◀───────────────────────── │                 │
+└──────────┘    2. Grant permissions   └─────────────────┘
+     │
+     │ 3. Access token returned
+     ▼
+┌──────────┐    4. Token sent with     ┌─────────────────┐
+│ Frontend │    export request         │    Backend      │
+│          │ ─────────────────────────▶│                 │
+│          │                           │ Uses token to   │
+│          │◀───────────────────────── │ call Slides API │
+└──────────┘    5. Slides URL returned └─────────────────┘
+```
+
+**Scopes requested:**
+- `presentations` - Create and modify Google Slides
+- `drive.file` - Access files created by the app
+
+## Slide Templates
+
+Five built-in templates are available:
+
+| Template | Description |
+|----------|-------------|
+| **Modern** | Clean, minimalist design with blue accents |
+| **Corporate** | Professional design with dark headers |
+| **Creative** | Bold colors and dynamic style |
+| **Minimal** | Simple black and white design |
+| **Executive** | Traditional executive presentation style |
+
+Templates control colors for titles, body text, and backgrounds. The actual slide layout uses Google Slides' built-in "Title and Body" layout.
 
 ## Project Structure
 
@@ -103,47 +173,62 @@ To enable the "Export to Google Slides" feature:
 doc2slides/
 ├── backend/                 # Node.js API server (port 3000)
 │   ├── src/
-│   │   ├── index.ts         # Express app entry
+│   │   ├── index.ts         # Express app entry point
 │   │   ├── routes/
-│   │   │   └── generate.ts  # POST /generate endpoint
+│   │   │   └── generate.ts  # /generate endpoints
 │   │   ├── services/
 │   │   │   ├── claude.ts    # Gemini API integration
-│   │   │   ├── slides.ts    # Google Slides creation
-│   │   │   └── prompts.ts   # Prompt templates
-│   │   └── types/
-│   │       └── index.ts     # TypeScript interfaces
+│   │   │   ├── slides.ts    # Google Slides API integration
+│   │   │   └── prompts.ts   # AI prompt templates
+│   │   ├── types/
+│   │   │   └── index.ts     # TypeScript interfaces & templates
+│   │   └── __tests__/       # Backend tests
 │   └── package.json
 │
-├── frontend/                # React frontend (port 5173)
+├── frontend/                # React + Vite frontend (port 5173)
 │   ├── src/
-│   │   ├── App.tsx          # Main React component
-│   │   └── main.tsx         # React entry point
-│   ├── index.html
+│   │   ├── App.tsx          # Main component with OAuth handling
+│   │   ├── App.test.tsx     # Frontend tests
+│   │   ├── main.tsx         # React entry with GoogleOAuthProvider
+│   │   └── test/
+│   │       └── setup.ts     # Vitest setup
 │   └── package.json
 │
-├── apps-script/             # Google Workspace Add-on
-│   ├── Code.gs              # Main Apps Script
-│   ├── Sidebar.html         # Configuration UI
-│   └── appsscript.json      # Manifest
+├── apps-script/             # Google Workspace Add-on (optional)
+│   ├── Code.gs
+│   ├── Sidebar.html
+│   └── appsscript.json
 │
 └── README.md
 ```
 
 ## API Reference
 
-### POST /generate
+### GET /generate/templates
 
-Create a presentation from document content.
+Returns available slide templates.
+
+**Response:**
+```json
+{
+  "templates": [
+    { "id": "modern", "name": "Modern", "description": "Clean, minimalist design with blue accents" },
+    { "id": "corporate", "name": "Corporate", "description": "Professional design with dark headers" }
+  ]
+}
+```
+
+### POST /generate/preview
+
+Preview AI-generated slide structure without creating a presentation. Does not require authentication.
 
 **Request:**
 ```json
 {
-  "documentContent": "Full text from Google Doc",
+  "documentContent": "Full text content to summarize",
   "documentTitle": "Document Title",
   "slideCount": 5,
-  "customPrompt": "Focus on Q4 metrics",
-  "userEmail": "user@example.com",
-  "accessToken": "OAuth token"
+  "customPrompt": "Focus on Q4 metrics (optional)"
 }
 ```
 
@@ -151,8 +236,47 @@ Create a presentation from document content.
 ```json
 {
   "success": true,
-  "slidesUrl": "https://docs.google.com/presentation/d/...",
-  "slidesId": "presentation-id"
+  "structure": {
+    "title": "Q4 Performance Review",
+    "slides": [
+      { "title": "Executive Summary", "bullets": ["Revenue up 15%", "Customer satisfaction at 92%"] },
+      { "title": "Key Metrics", "bullets": ["..."] }
+    ]
+  }
+}
+```
+
+### POST /generate
+
+Create a Google Slides presentation. Requires Google OAuth token.
+
+**Request:**
+```json
+{
+  "documentContent": "Full text content to summarize",
+  "documentTitle": "Document Title",
+  "slideCount": 5,
+  "template": "modern",
+  "customPrompt": "Focus on Q4 metrics (optional)",
+  "accessToken": "Google OAuth access token",
+  "userEmail": "user@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "slidesUrl": "https://docs.google.com/presentation/d/abc123/edit",
+  "slidesId": "abc123"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Error message"
 }
 ```
 
@@ -174,23 +298,41 @@ npm test            # Run all tests
 npm run test:watch  # Watch mode
 ```
 
-Tests cover:
-- Prompt generation and formatting
-- API endpoint validation
-- Request/response handling
-- React component rendering
+### Test Coverage
 
-## Deployment Options
+**Backend tests cover:**
+- Prompt generation and formatting
+- API endpoint validation (required fields, slide count limits)
+- Request/response handling
+- Template validation
+
+**Frontend tests cover:**
+- Component rendering
+- Form validation and submission
+- Loading and error states
+- Google OAuth sign-in flow (mocked)
+- Export to Google Slides flow (mocked)
+
+## Deployment
 
 ### Backend
-- **Cloud Run**: `gcloud run deploy`
-- **Railway**: Connect GitHub repo
-- **Heroku**: `git push heroku main`
-- **Self-hosted**: Any Node.js server
 
-### Add-on
-- **Private**: Test deployment for personal/org use
-- **Public**: Submit to Google Workspace Marketplace
+| Platform | Command |
+|----------|---------|
+| Cloud Run | `gcloud run deploy` |
+| Railway | Connect GitHub repo |
+| Heroku | `git push heroku main` |
+| Docker | Build from included Dockerfile |
+
+### Frontend
+
+Build the static assets and deploy to any static hosting:
+
+```bash
+cd frontend
+npm run build
+# Deploy dist/ folder
+```
 
 ## License
 
@@ -201,7 +343,7 @@ MIT
 ```
   /\_/\
  ( o.o )
-  > ^ <   Meow! Thanks for stopping by! Have a purrfect day!
+  > ^ <   Built with Gemini AI
  /|   |\
 (_|   |_)
 ```

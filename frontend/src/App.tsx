@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 
+// Check at runtime to support testing
+const isOAuthEnabled = () => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
 interface Slide {
   title: string;
   bullets: string[];
@@ -38,6 +41,42 @@ const TEMPLATES: { id: SlideTemplate; name: string; description: string }[] = [
   { id: "executive", name: "Executive", description: "Traditional executive presentation style" },
 ];
 
+// Custom hook that wraps Google OAuth - checks at runtime if OAuth is properly configured
+function useGoogleAuth(
+  onSuccess: (accessToken: string) => Promise<void>,
+  onError: (error: string) => void
+) {
+  const oauthEnabled = isOAuthEnabled();
+
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      await onSuccess(tokenResponse.access_token);
+    },
+    onError: (error) => {
+      console.error("Login failed:", error);
+      onError("Google sign-in failed. Please try again.");
+    },
+    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file",
+  });
+
+  // If OAuth is not configured, return wrapper that shows error
+  if (!oauthEnabled) {
+    return {
+      login: () => {
+        onError("Google OAuth is not configured. Please set VITE_GOOGLE_CLIENT_ID.");
+      },
+      logout: () => {},
+      isEnabled: false,
+    };
+  }
+
+  return {
+    login,
+    logout: googleLogout,
+    isEnabled: true,
+  };
+}
+
 function App() {
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
@@ -54,36 +93,34 @@ function App() {
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<ExportResponse | null>(null);
 
-  const login = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setAccessToken(tokenResponse.access_token);
-      // Fetch user info
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v3/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-          }
-        );
-        const userInfo = await userInfoResponse.json();
-        setUser({
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-        });
-      } catch (err) {
-        console.error("Failed to fetch user info:", err);
-      }
-    },
-    onError: (error) => {
-      console.error("Login failed:", error);
-      setError("Google sign-in failed. Please try again.");
-    },
-    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file",
-  });
+  const handleLoginSuccess = async (token: string) => {
+    setAccessToken(token);
+    // Fetch user info
+    try {
+      const userInfoResponse = await fetch(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const userInfo = await userInfoResponse.json();
+      setUser({
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+      });
+    } catch (err) {
+      console.error("Failed to fetch user info:", err);
+    }
+  };
+
+  const { login, logout, isEnabled: oauthEnabled } = useGoogleAuth(
+    handleLoginSuccess,
+    setError
+  );
 
   const handleLogout = () => {
-    googleLogout();
+    logout();
     setAccessToken(null);
     setUser(null);
     setExportResult(null);
@@ -175,10 +212,12 @@ function App() {
                 Sign Out
               </button>
             </div>
-          ) : (
+          ) : oauthEnabled ? (
             <button onClick={() => login()} className="google-login-button">
               Sign in with Google
             </button>
+          ) : (
+            <span className="oauth-disabled">Google OAuth not configured</span>
           )}
         </div>
       </header>
@@ -291,9 +330,13 @@ function App() {
                   >
                     {exporting ? "Exporting..." : "Export to Google Slides"}
                   </button>
-                ) : (
+                ) : oauthEnabled ? (
                   <p className="login-prompt">
                     Sign in with Google to export to Google Slides
+                  </p>
+                ) : (
+                  <p className="login-prompt">
+                    Configure Google OAuth to enable export to Google Slides
                   </p>
                 )}
               </div>
