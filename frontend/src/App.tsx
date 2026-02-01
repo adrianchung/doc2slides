@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useGoogleLogin, googleLogout } from "@react-oauth/google";
+import { jsPDF } from "jspdf";
 
 // Check at runtime to support testing
 const isOAuthEnabled = () => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -59,7 +60,7 @@ function useGoogleAuth(
       console.error("Login failed:", error);
       onError("Google sign-in failed. Please try again.");
     },
-    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly",
+    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly profile email",
   });
 
   // If OAuth is not configured, return wrapper that shows error
@@ -177,6 +178,48 @@ function App() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleExportToPdf = () => {
+    if (!result?.structure) return;
+
+    const doc = new jsPDF();
+    const { title, slides } = result.structure;
+
+    // Title Slide
+    doc.setFontSize(24);
+    const splitTitle = doc.splitTextToSize(title, 170);
+    // A4 size is roughly 210mm x 297mm. Center horizontal is 105.
+    // Vertical center is ~148, but let's put it slightly higher.
+    doc.text(splitTitle, 105, 100, { align: "center" });
+
+    // Content Slides
+    slides.forEach((slide) => {
+      doc.addPage();
+
+      // Slide Title
+      doc.setFontSize(20);
+      doc.text(slide.title, 20, 20);
+
+      // Bullets
+      doc.setFontSize(14);
+      let yPos = 40;
+      
+      slide.bullets.forEach((bullet) => {
+        const splitBullet = doc.splitTextToSize(`• ${bullet}`, 170);
+        
+        // Check if we need a new page for overflow
+        if (yPos + (splitBullet.length * 7) > 280) {
+            doc.addPage();
+            yPos = 20;
+        }
+        
+        doc.text(splitBullet, 20, yPos);
+        yPos += 7 * splitBullet.length + 5; // Line height + spacing
+      });
+    });
+
+    doc.save(`${title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || "presentation"}.pdf`);
   };
 
   const validateGoogleDocsUrl = (url: string): boolean => {
@@ -455,6 +498,14 @@ function App() {
                     Configure Google OAuth to enable export to Google Slides
                   </p>
                 )}
+                
+                <button 
+                  onClick={handleExportToPdf}
+                  className="export-button secondary"
+                  style={{ marginTop: '10px' }}
+                >
+                  Export to PDF
+                </button>
               </div>
 
               <div className="slide title-slide">

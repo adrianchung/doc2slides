@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
 // Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal("fetch", mockFetch);
 
 // Mock Google OAuth
 const mockLogin = vi.fn();
@@ -19,6 +19,21 @@ vi.mock("@react-oauth/google", () => ({
     };
   },
   googleLogout: () => mockLogout(),
+}));
+
+// Mock jspdf
+const mockJsPDF = {
+  setFontSize: vi.fn(),
+  text: vi.fn(),
+  addPage: vi.fn(),
+  save: vi.fn(),
+  splitTextToSize: vi.fn().mockReturnValue(["text"]),
+};
+
+vi.mock("jspdf", () => ({
+  jsPDF: vi.fn().mockImplementation(function () {
+    return mockJsPDF;
+  }),
 }));
 
 describe("App", () => {
@@ -364,5 +379,33 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText("Failed to create presentation")).toBeInTheDocument();
     });
+  });
+
+  it("exports to PDF when Export to PDF button is clicked", async () => {
+    const user = userEvent.setup();
+    mockFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          success: true,
+          structure: {
+            title: "PDF Test Presentation",
+            slides: [{ title: "Slide 1", bullets: ["Point A"] }],
+          },
+        }),
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Document Title"), "Test Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export to PDF" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Export to PDF" }));
+
+    expect(mockJsPDF.save).toHaveBeenCalledWith("pdf_test_presentation.pdf");
   });
 });

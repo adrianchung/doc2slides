@@ -298,6 +298,14 @@ button:disabled {
   background: #2d8e47;
 }
 
+.export-button.secondary {
+  background: #5f6368;
+}
+
+.export-button.secondary:hover:not(:disabled) {
+  background: #4a4e52;
+}
+
 .export-success {
   color: #1e7e34;
 }
