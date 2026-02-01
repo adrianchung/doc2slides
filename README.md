@@ -159,6 +159,54 @@ In **APIs & Services > Library**, enable:
 - `drive.file` - Access files created by the app
 - `documents.readonly` - Read Google Docs content (for import feature)
 
+### Avoiding Security Warnings During Development
+
+When signing in with Google OAuth during development, you may see warnings like:
+- "Google hasn't verified this app"
+- "This app is blocked"
+- "This app isn't verified"
+
+These warnings appear because your OAuth consent screen is in **Testing** mode and hasn't been verified by Google. Here's how to avoid them:
+
+#### Option 1: Add Test Users (Recommended for Development)
+
+1. Go to **APIs & Services > OAuth consent screen** in [Google Cloud Console](https://console.cloud.google.com/)
+2. Scroll down to the **Test users** section
+3. Click **Add users**
+4. Add the Google account email addresses that will be testing the app
+5. Save changes
+
+Test users can sign in without seeing the "unverified app" warning. You can add up to 100 test users.
+
+#### Option 2: Publish the App
+
+If you want anyone to use the app without being added as a test user:
+
+1. Go to **APIs & Services > OAuth consent screen**
+2. Click **Publish App** to move from Testing to Production
+3. For sensitive scopes (like those used by this app), Google requires verification
+
+**Note:** Publishing doesn't mean the app is publicly discoverable—it just means anyone can sign in. However, unverified published apps will still show a warning screen that users must click through.
+
+#### Option 3: Use Internal User Type (Google Workspace Only)
+
+If you have a Google Workspace organization:
+
+1. When creating the OAuth consent screen, choose **Internal** instead of External
+2. Only users within your organization can access the app
+3. No verification required and no warning screens
+
+#### Understanding the Warning Screens
+
+| App Status | User Type | Warning Shown |
+|------------|-----------|---------------|
+| Testing | Test user | None |
+| Testing | Non-test user | "App blocked" (cannot proceed) |
+| Published (unverified) | Any user | "Google hasn't verified this app" (can click through) |
+| Published (verified) | Any user | None |
+
+For local development, **adding yourself as a test user** is the simplest solution.
+
 ## Slide Templates
 
 Five built-in templates are available:
