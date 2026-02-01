@@ -142,6 +142,68 @@ describe("POST /generate", () => {
     expect(response.body.slidesUrl).toBeDefined();
     expect(response.body.slidesId).toBeDefined();
   });
+
+  it("should accept valid template", async () => {
+    const response = await request(app)
+      .post("/generate")
+      .send({
+        documentContent: "Content",
+        documentTitle: "Title",
+        slideCount: 5,
+        template: "corporate",
+        userEmail: "test@example.com",
+        accessToken: "token",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+  });
+
+  it("should return 400 for invalid template", async () => {
+    const response = await request(app)
+      .post("/generate")
+      .send({
+        documentContent: "Content",
+        documentTitle: "Title",
+        slideCount: 5,
+        template: "invalid-template",
+        userEmail: "test@example.com",
+        accessToken: "token",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("Invalid template");
+  });
+});
+
+describe("GET /generate/templates", () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/generate", generateRouter);
+
+  it("should return list of available templates", async () => {
+    const response = await request(app).get("/generate/templates");
+
+    expect(response.status).toBe(200);
+    expect(response.body.templates).toBeInstanceOf(Array);
+    expect(response.body.templates.length).toBeGreaterThan(0);
+
+    const templateIds = response.body.templates.map((t: { id: string }) => t.id);
+    expect(templateIds).toContain("modern");
+    expect(templateIds).toContain("corporate");
+    expect(templateIds).toContain("creative");
+    expect(templateIds).toContain("minimal");
+    expect(templateIds).toContain("executive");
+  });
+
+  it("should return template with name and description", async () => {
+    const response = await request(app).get("/generate/templates");
+
+    const modernTemplate = response.body.templates.find((t: { id: string }) => t.id === "modern");
+    expect(modernTemplate).toBeDefined();
+    expect(modernTemplate.name).toBe("Modern");
+    expect(modernTemplate.description).toBeDefined();
+  });
 });
 
 describe("POST /generate/preview", () => {

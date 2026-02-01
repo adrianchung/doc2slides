@@ -28,10 +28,21 @@ interface UserInfo {
   picture: string;
 }
 
+type SlideTemplate = "modern" | "corporate" | "creative" | "minimal" | "executive";
+
+const TEMPLATES: { id: SlideTemplate; name: string; description: string }[] = [
+  { id: "modern", name: "Modern", description: "Clean, minimalist design with blue accents" },
+  { id: "corporate", name: "Corporate", description: "Professional design with dark headers" },
+  { id: "creative", name: "Creative", description: "Bold colors and dynamic style" },
+  { id: "minimal", name: "Minimal", description: "Simple black and white design" },
+  { id: "executive", name: "Executive", description: "Traditional executive presentation style" },
+];
+
 function App() {
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
   const [slideCount, setSlideCount] = useState(5);
+  const [template, setTemplate] = useState<SlideTemplate>("modern");
   const [customPrompt, setCustomPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
@@ -95,6 +106,7 @@ function App() {
           documentContent,
           documentTitle,
           slideCount,
+          template,
           customPrompt: customPrompt || undefined,
           accessToken,
           userEmail: user.email,
@@ -209,6 +221,21 @@ function App() {
                 <option value={5}>5 slides</option>
                 <option value={7}>7 slides</option>
                 <option value={10}>10 slides</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="template">Slide Template</label>
+              <select
+                id="template"
+                value={template}
+                onChange={(e) => setTemplate(e.target.value as SlideTemplate)}
+              >
+                {TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} - {t.description}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
