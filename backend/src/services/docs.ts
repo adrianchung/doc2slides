@@ -80,7 +80,64 @@ export function extractTextFromDocument(document: DocsApiResponse): string {
 }
 
 /**
+ * Fetch document content using the Drive API export endpoint.
+ * This works for "anyone with the link" documents that the Docs API can't access.
+ */
+async function fetchViaDriveExport(
+  documentId: string,
+  accessToken: string
+): Promise<GoogleDocsContent> {
+  const metadataResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${documentId}?fields=name`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!metadataResponse.ok) {
+    if (metadataResponse.status === 404) {
+      throw new DocsError(
+        "DOCUMENT_NOT_FOUND",
+        "Document not found",
+        400
+      );
+    }
+    throw new DocsError(
+      "ACCESS_DENIED",
+      "No permission to access document. Make sure the document is shared with your Google account or set to 'Anyone with the link'.",
+      403
+    );
+  }
+
+  const metadata = await metadataResponse.json();
+  const title = metadata.name || "Untitled Document";
+
+  const exportResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${documentId}/export?mimeType=text/plain`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!exportResponse.ok) {
+    throw new DocsError(
+      "ACCESS_DENIED",
+      "Failed to export document content",
+      403
+    );
+  }
+
+  const content = await exportResponse.text();
+  return { title, content: content.trim() };
+}
+
+/**
  * Fetch content from a Google Docs URL using the Docs API
+ * Falls back to Drive API export for "anyone with the link" documents
  */
 export async function fetchGoogleDocsContent(
   url: string,
@@ -106,11 +163,7 @@ export async function fetchGoogleDocsContent(
       );
     }
     if (response.status === 403 || response.status === 401) {
-      throw new DocsError(
-        "ACCESS_DENIED",
-        "No permission to access document",
-        403
-      );
+      return fetchViaDriveExport(documentId, accessToken);
     }
     throw new DocsError(
       "ACCESS_DENIED",

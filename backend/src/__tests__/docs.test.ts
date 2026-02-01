@@ -226,44 +226,118 @@ describe("fetchGoogleDocsContent", () => {
     }
   });
 
-  it("should throw DocsError with ACCESS_DENIED for 403", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 403,
-      statusText: "Forbidden",
+  it("should fallback to Drive API on 403 and succeed", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "Shared Document" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve("Content from Drive API"),
+      });
+
+    const result = await fetchGoogleDocsContent(
+      "https://docs.google.com/document/d/shared123/edit",
+      "mock-token"
+    );
+
+    expect(result).toEqual({
+      title: "Shared Document",
+      content: "Content from Drive API",
     });
 
-    await expect(
-      fetchGoogleDocsContent(
-        "https://docs.google.com/document/d/private/edit",
-        "mock-token"
-      )
-    ).rejects.toThrow(DocsError);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "https://www.googleapis.com/drive/v3/files/shared123?fields=name",
+      { headers: { Authorization: "Bearer mock-token" } }
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://www.googleapis.com/drive/v3/files/shared123/export?mimeType=text/plain",
+      { headers: { Authorization: "Bearer mock-token" } }
+    );
+  });
+
+  it("should fallback to Drive API on 401 and succeed", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "Auth Fallback Doc" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve("Fallback content"),
+      });
+
+    const result = await fetchGoogleDocsContent(
+      "https://docs.google.com/document/d/test/edit",
+      "mock-token"
+    );
+
+    expect(result).toEqual({
+      title: "Auth Fallback Doc",
+      content: "Fallback content",
+    });
+  });
+
+  it("should throw DocsError when Drive API fallback also fails with 404", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
 
     try {
       await fetchGoogleDocsContent(
-        "https://docs.google.com/document/d/private/edit",
+        "https://docs.google.com/document/d/notfound/edit",
         "mock-token"
       );
+      expect.fail("Should have thrown an error");
     } catch (error) {
-      expect((error as DocsError).code).toBe("ACCESS_DENIED");
-      expect((error as DocsError).httpStatus).toBe(403);
+      expect(error).toBeInstanceOf(DocsError);
+      expect((error as DocsError).code).toBe("DOCUMENT_NOT_FOUND");
     }
   });
 
-  it("should throw DocsError with ACCESS_DENIED for 401", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-    });
+  it("should throw DocsError when Drive API fallback fails with 403", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
 
     try {
       await fetchGoogleDocsContent(
-        "https://docs.google.com/document/d/test/edit",
-        "invalid-token"
+        "https://docs.google.com/document/d/private/edit",
+        "mock-token"
       );
+      expect.fail("Should have thrown an error");
     } catch (error) {
+      expect(error).toBeInstanceOf(DocsError);
       expect((error as DocsError).code).toBe("ACCESS_DENIED");
       expect((error as DocsError).httpStatus).toBe(403);
     }

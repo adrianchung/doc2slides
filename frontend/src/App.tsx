@@ -102,7 +102,7 @@ function useGoogleAuth(
       console.error("Login failed:", error);
       onError("Google sign-in failed. Please try again.");
     },
-    scope: "openid profile email https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly",
+    scope: "openid profile email https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly",
   });
 
   // If OAuth is not configured, return wrapper that shows error

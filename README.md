@@ -118,6 +118,7 @@ In **APIs & Services > Library**, enable:
 5. Add scopes:
    - `https://www.googleapis.com/auth/presentations`
    - `https://www.googleapis.com/auth/drive.file`
+   - `https://www.googleapis.com/auth/drive.readonly`
    - `https://www.googleapis.com/auth/documents.readonly`
 6. Add test users (required while app is in "Testing" status)
 
@@ -157,6 +158,7 @@ In **APIs & Services > Library**, enable:
 **Scopes requested:**
 - `presentations` - Create and modify Google Slides
 - `drive.file` - Access files created by the app
+- `drive.readonly` - Access shared Google Drive files (for "anyone with link" documents)
 - `documents.readonly` - Read Google Docs content (for import feature)
 
 ### Avoiding Security Warnings During Development
