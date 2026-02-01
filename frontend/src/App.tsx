@@ -6,6 +6,9 @@ import html2canvas from "html2canvas";
 // Check at runtime to support testing
 const isOAuthEnabled = () => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
+// API URL - empty string uses same-origin (works with Vite proxy in dev, Firebase rewrites in prod)
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 interface Slide {
   title: string;
   bullets: string[];
@@ -206,7 +209,7 @@ function App() {
         requestBody.documentContent = documentContent;
       }
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch(`${API_URL}/api/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -339,7 +342,7 @@ function App() {
         requestBody.documentTitle = documentTitle;
       }
 
-      const response = await fetch("/api/generate/preview", {
+      const response = await fetch(`${API_URL}/api/generate/preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
