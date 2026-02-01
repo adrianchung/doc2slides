@@ -41,9 +41,23 @@ Convert documents into executive-ready Google Slides presentations using AI.
 4. Frontend calls `/generate` with OAuth token to create the actual presentation
 5. Backend uses Gemini API to structure content, then Google Slides API to create presentation
 
+## Prerequisites
+
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **npm** - Comes with Node.js
+- **Google Gemini API Key** - [Get one free](https://aistudio.google.com/app/apikey) (required)
+- **Google OAuth Client ID** - [Setup guide](#google-oauth-setup) (optional, for export feature)
+
 ## Quick Start
 
-### 1. Start the Backend Server
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/adrianchung/doc2slides.git
+cd doc2slides
+```
+
+### 2. Start the Backend Server
 
 ```bash
 cd backend
@@ -51,14 +65,27 @@ npm install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your Gemini API key
+```
 
+Edit `backend/.env` and add your Gemini API key:
+```
+GEMINI_API_KEY=your-gemini-api-key-here
+```
+
+Start the server:
+```bash
 npm run dev
 ```
 
-The backend will be available at **http://localhost:3000**.
+The backend will be available at **http://localhost:3000**. You should see:
+```
+Doc2Slides backend running on port 3000
+Gemini API key configured: Yes
+```
 
-### 2. Start the Frontend Server
+### 3. Start the Frontend Server
+
+Open a **new terminal** and run:
 
 ```bash
 cd frontend
@@ -66,14 +93,38 @@ npm install
 
 # (Optional) Set up Google OAuth for export functionality
 cp .env.example .env
-# Edit .env with your Google OAuth Client ID
+```
 
+If you want to enable Google Slides export, edit `frontend/.env`:
+```
+VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+```
+
+Start the server:
+```bash
 npm run dev
 ```
 
 The frontend will be available at **http://localhost:5173**.
 
-**Note:** The app works without Google OAuth configured - you can preview slides but won't be able to export to Google Slides.
+### 4. Use the App
+
+1. Open http://localhost:5173 in your browser
+2. Paste document text or enter a Google Docs URL
+3. Select number of slides and template
+4. Click "Generate Preview"
+5. (Optional) Sign in with Google to export to Google Slides
+
+**Note:** The app works without Google OAuth configured - you can preview slides but won't be able to export to Google Slides or import from Google Docs.
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Failed to connect to server" | Make sure backend is running on port 3000 |
+| "Gemini API key not configured" | Check `backend/.env` has valid `GEMINI_API_KEY` |
+| Google sign-in not working | Ensure `VITE_GOOGLE_CLIENT_ID` is set in `frontend/.env` |
+| OAuth security warnings | See [Avoiding Security Warnings](#avoiding-security-warnings-during-development) |
 
 ## Configuration
 
