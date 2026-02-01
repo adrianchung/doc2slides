@@ -105,6 +105,12 @@ export async function createPresentation(
   }
 
   // Create content slides
+  // Google Slides default size is 720x540 PT (10x7.5 inches)
+  const slideWidth = 720;
+  const slideHeight = 540;
+  const margin = 36;
+  const contentWidth = slideWidth - (margin * 2); // 648 PT
+
   for (let i = 0; i < structure.slides.length; i++) {
     const slide = structure.slides[i];
     const slideId = `slide_${i}`;
@@ -112,24 +118,14 @@ export async function createPresentation(
     const bodyId = `body_${i}`;
     const headerShapeId = `header_${i}`;
 
-    // Create new slide with title and body layout
+    // Create blank slide (we'll add our own text boxes for full control)
     requests.push({
       createSlide: {
         objectId: slideId,
         insertionIndex: i + 1,
         slideLayoutReference: {
-          predefinedLayout: "TITLE_AND_BODY",
+          predefinedLayout: "BLANK",
         },
-        placeholderIdMappings: [
-          {
-            layoutPlaceholder: { type: "TITLE", index: 0 },
-            objectId: titleId,
-          },
-          {
-            layoutPlaceholder: { type: "BODY", index: 0 },
-            objectId: bodyId,
-          },
-        ],
       },
     });
 
@@ -150,8 +146,16 @@ export async function createPresentation(
       },
     });
 
+    // Calculate positions based on whether header is present
+    const hasHeader = !!templateConfig.headerColor;
+    const headerHeight = 60;
+    const titleY = hasHeader ? headerHeight + 10 : 20;
+    const titleHeight = 50;
+    const bodyY = titleY + titleHeight + 5;
+    const bodyHeight = slideHeight - bodyY - margin;
+
     // Add header rectangle if template has it
-    if (templateConfig.headerColor) {
+    if (hasHeader) {
       requests.push({
         createShape: {
           objectId: headerShapeId,
@@ -159,8 +163,8 @@ export async function createPresentation(
           elementProperties: {
             pageObjectId: slideId,
             size: {
-              height: { magnitude: 60, unit: "PT" },
-              width: { magnitude: 720, unit: "PT" },
+              height: { magnitude: headerHeight, unit: "PT" },
+              width: { magnitude: slideWidth, unit: "PT" },
             },
             transform: {
               scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: "PT",
@@ -182,27 +186,39 @@ export async function createPresentation(
       });
     }
 
-    // Explicitly position and size the title and body to avoid overlap
-    const titleY = templateConfig.headerColor ? 10 : 25;
-    const bodyY = templateConfig.headerColor ? 80 : 90;
-
+    // Create title text box with explicit size
     requests.push({
-      updatePageElementTransform: {
+      createShape: {
         objectId: titleId,
-        transform: {
-          scaleX: 1, scaleY: 1, translateX: 36, translateY: titleY, unit: "PT",
+        shapeType: "TEXT_BOX",
+        elementProperties: {
+          pageObjectId: slideId,
+          size: {
+            height: { magnitude: titleHeight, unit: "PT" },
+            width: { magnitude: contentWidth, unit: "PT" },
+          },
+          transform: {
+            scaleX: 1, scaleY: 1, translateX: margin, translateY: titleY, unit: "PT",
+          },
         },
-        applyMode: "ABSOLUTE",
       },
     });
 
+    // Create body text box with explicit size to fill remaining space
     requests.push({
-      updatePageElementTransform: {
+      createShape: {
         objectId: bodyId,
-        transform: {
-          scaleX: 1, scaleY: 1, translateX: 36, translateY: bodyY, unit: "PT",
+        shapeType: "TEXT_BOX",
+        elementProperties: {
+          pageObjectId: slideId,
+          size: {
+            height: { magnitude: bodyHeight, unit: "PT" },
+            width: { magnitude: contentWidth, unit: "PT" },
+          },
+          transform: {
+            scaleX: 1, scaleY: 1, translateX: margin, translateY: bodyY, unit: "PT",
+          },
         },
-        applyMode: "ABSOLUTE",
       },
     });
 
@@ -216,8 +232,8 @@ export async function createPresentation(
     });
 
     // Apply title styling
-    const titleTextColor = templateConfig.headerColor 
-      ? (templateConfig.titleColorWithHeader || { red: 1, green: 1, blue: 1 }) 
+    const titleTextColor = hasHeader
+      ? (templateConfig.titleColorWithHeader || templateConfig.titleColor)
       : templateConfig.titleColor;
 
     requests.push({
@@ -231,7 +247,7 @@ export async function createPresentation(
           },
           bold: true,
           fontSize: {
-            magnitude: 28, // Slightly smaller to fit header
+            magnitude: 28,
             unit: "PT",
           },
         },
