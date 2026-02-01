@@ -113,12 +113,18 @@ function App() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+      if (!userInfoResponse.ok) {
+        throw new Error(`Failed to fetch user info: ${userInfoResponse.statusText}`);
+      }
+      
       const userInfo = await userInfoResponse.json();
-      setUser({
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture,
-      });
+      if (userInfo.email) {
+        setUser({
+          email: userInfo.email,
+          name: userInfo.name || userInfo.email.split("@")[0],
+          picture: userInfo.picture,
+        });
+      }
     } catch (err) {
       console.error("Failed to fetch user info:", err);
     }
