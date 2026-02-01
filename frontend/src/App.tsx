@@ -199,26 +199,51 @@ function App() {
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "px",
-      format: [800, 600] // Matching a typical slide aspect ratio
+      format: [800, 600]
     });
 
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i] as HTMLElement;
       
       const canvas = await html2canvas(slide, {
-        scale: 2, // Higher quality
+        scale: 2,
         logging: false,
         useCORS: true
       });
 
       const imgData = canvas.toDataURL("image/png");
+      const imgProps = doc.getImageProperties(imgData);
       
+      const pdfWidth = 800;
+      const pdfHeight = 600;
+      
+      const ratio = imgProps.width / imgProps.height;
+      const pageRatio = pdfWidth / pdfHeight;
+      
+      let renderWidth, renderHeight;
+      
+      if (ratio > pageRatio) {
+        renderWidth = pdfWidth;
+        renderHeight = pdfWidth / ratio;
+      } else {
+        renderHeight = pdfHeight;
+        renderWidth = pdfHeight * ratio;
+      }
+      
+      const x = (pdfWidth - renderWidth) / 2;
+      const y = (pdfHeight - renderHeight) / 2;
+
       if (i > 0) {
         doc.addPage([800, 600], "landscape");
       }
 
-      // Add image to fill the page
-      doc.addImage(imgData, "PNG", 0, 0, 800, 600);
+      // Fill background if it's a title slide to avoid white borders
+      if (slide.classList.contains("title-slide")) {
+        doc.setFillColor(26, 115, 232); // #1a73e8
+        doc.rect(0, 0, pdfWidth, pdfHeight, "F");
+      }
+
+      doc.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
     }
 
     const title = result.structure.title || "presentation";

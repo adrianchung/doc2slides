@@ -28,6 +28,9 @@ const mockJsPDF = {
   addPage: vi.fn(),
   save: vi.fn(),
   addImage: vi.fn(),
+  setFillColor: vi.fn(),
+  rect: vi.fn(),
+  getImageProperties: vi.fn().mockReturnValue({ width: 800, height: 600 }),
   splitTextToSize: vi.fn().mockReturnValue(["text"]),
 };
 
@@ -170,7 +173,7 @@ describe("App", () => {
   it("sends correct payload to API", async () => {
     const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
-      json: () => Promise.resolve({ success: true, structure: { title: "T", slides: [] } }),
+      ok: true, json: () => Promise.resolve({ success: true, structure: { title: "T", slides: [] } }),
     });
 
     render(<App />);
@@ -233,7 +236,7 @@ describe("App", () => {
     // Mock user info fetch
     mockFetch
       .mockResolvedValueOnce({
-        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+        ok: true, json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
         json: () =>
@@ -271,7 +274,7 @@ describe("App", () => {
     // Mock: user info, generate preview, export
     mockFetch
       .mockResolvedValueOnce({
-        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+        ok: true, json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
         json: () =>
@@ -326,7 +329,7 @@ describe("App", () => {
     const user = userEvent.setup();
 
     mockFetch.mockResolvedValueOnce({
-      json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      ok: true, json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
     });
 
     render(<App />);
@@ -343,7 +346,7 @@ describe("App", () => {
 
     mockFetch
       .mockResolvedValueOnce({
-        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+        ok: true, json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
         json: () =>
@@ -392,6 +395,7 @@ describe("App", () => {
   it("exports to PDF when Export to PDF button is clicked", async () => {
     const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () =>
         Promise.resolve({
           success: true,
@@ -414,6 +418,63 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Export to PDF" }));
 
-    expect(mockJsPDF.save).toHaveBeenCalledWith("pdf_test_presentation.pdf");
+    await waitFor(() => {
+      expect(mockJsPDF.save).toHaveBeenCalledWith("pdf_test_presentation.pdf");
+    });
+  });
+
+  it("verifies PDF export maintains aspect ratio and fills title background", async () => {
+    const user = userEvent.setup();
+    
+    // Mock image properties for a non-standard aspect ratio
+    // 1600x900 is 16:9, but PDF is 800x600 (4:3)
+    mockJsPDF.getImageProperties.mockReturnValue({ width: 1600, height: 900 });
+    
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          structure: {
+            title: "Aspect Ratio Test",
+            slides: [{ title: "Content Slide", bullets: ["Point A"] }],
+          },
+        }),
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Document Title"), "Aspect Ratio Title");
+    await user.type(screen.getByLabelText("Document Content"), "Test content");
+    await user.click(screen.getByRole("button", { name: "Generate Slides" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export to PDF" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Export to PDF" }));
+
+    await waitFor(() => {
+      // 1. Check title slide background filling
+      expect(mockJsPDF.setFillColor).toHaveBeenCalledWith(26, 115, 232);
+      expect(mockJsPDF.rect).toHaveBeenCalledWith(0, 0, 800, 600, "F");
+
+      // 2. Check image scaling and centering
+      // For 16:9 image on 4:3 page:
+      // ratio = 1600/900 = 1.777
+      // pageRatio = 800/600 = 1.333
+      // ratio > pageRatio, so:
+      // renderWidth = 800
+      // renderHeight = 800 / (1600/900) = 800 * 900 / 1600 = 450
+      // y = (600 - 450) / 2 = 75
+      expect(mockJsPDF.addImage).toHaveBeenCalledWith(
+        expect.any(String),
+        "PNG",
+        0, // x
+        75, // y
+        800, // width
+        450 // height
+      );
+    });
   });
 });
