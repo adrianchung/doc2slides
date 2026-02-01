@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 // Check at runtime to support testing
 const isOAuthEnabled = () => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -60,7 +61,7 @@ function useGoogleAuth(
       console.error("Login failed:", error);
       onError("Google sign-in failed. Please try again.");
     },
-    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly profile email",
+    scope: "openid profile email https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly",
   });
 
   // If OAuth is not configured, return wrapper that shows error
@@ -180,46 +181,42 @@ function App() {
     }
   };
 
-  const handleExportToPdf = () => {
+  const handleExportToPdf = async () => {
     if (!result?.structure) return;
 
-    const doc = new jsPDF();
-    const { title, slides } = result.structure;
+    const slidesContainer = document.querySelector(".slides-preview");
+    if (!slidesContainer) return;
 
-    // Title Slide
-    doc.setFontSize(24);
-    const splitTitle = doc.splitTextToSize(title, 170);
-    // A4 size is roughly 210mm x 297mm. Center horizontal is 105.
-    // Vertical center is ~148, but let's put it slightly higher.
-    doc.text(splitTitle, 105, 100, { align: "center" });
-
-    // Content Slides
-    slides.forEach((slide) => {
-      doc.addPage();
-
-      // Slide Title
-      doc.setFontSize(20);
-      doc.text(slide.title, 20, 20);
-
-      // Bullets
-      doc.setFontSize(14);
-      let yPos = 40;
-      
-      slide.bullets.forEach((bullet) => {
-        const splitBullet = doc.splitTextToSize(`• ${bullet}`, 170);
-        
-        // Check if we need a new page for overflow
-        if (yPos + (splitBullet.length * 7) > 280) {
-            doc.addPage();
-            yPos = 20;
-        }
-        
-        doc.text(splitBullet, 20, yPos);
-        yPos += 7 * splitBullet.length + 5; // Line height + spacing
-      });
+    // Filter out the export-section buttons from the capture
+    const slides = Array.from(slidesContainer.querySelectorAll(".slide"));
+    
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "px",
+      format: [800, 600] // Matching a typical slide aspect ratio
     });
 
-    doc.save(`${title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || "presentation"}.pdf`);
+    for (let i = 0; i < slides.length; i++) {
+      const slide = slides[i] as HTMLElement;
+      
+      const canvas = await html2canvas(slide, {
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      
+      if (i > 0) {
+        doc.addPage([800, 600], "landscape");
+      }
+
+      // Add image to fill the page
+      doc.addImage(imgData, "PNG", 0, 0, 800, 600);
+    }
+
+    const title = result.structure.title || "presentation";
+    doc.save(`${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`);
   };
 
   const validateGoogleDocsUrl = (url: string): boolean => {
@@ -304,7 +301,18 @@ function App() {
         <div className="auth-section">
           {user ? (
             <div className="user-info">
-              <img src={user.picture} alt={user.name} className="user-avatar" />
+              {user.picture ? (
+                <img 
+                  src={user.picture} 
+                  alt={user.name} 
+                  className="user-avatar" 
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="user-avatar-placeholder">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+              )}
               <span className="user-name">{user.name}</span>
               <button onClick={handleLogout} className="logout-button">
                 Sign Out

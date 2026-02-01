@@ -27,12 +27,20 @@ const mockJsPDF = {
   text: vi.fn(),
   addPage: vi.fn(),
   save: vi.fn(),
+  addImage: vi.fn(),
   splitTextToSize: vi.fn().mockReturnValue(["text"]),
 };
 
 vi.mock("jspdf", () => ({
   jsPDF: vi.fn().mockImplementation(function () {
     return mockJsPDF;
+  }),
+}));
+
+// Mock html2canvas
+vi.mock("html2canvas", () => ({
+  default: vi.fn().mockResolvedValue({
+    toDataURL: vi.fn().mockReturnValue("data:image/png;base64,mock"),
   }),
 }));
 
