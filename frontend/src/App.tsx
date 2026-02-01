@@ -2,11 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 
 // localStorage keys for OAuth persistence
+// NOTE: Storing tokens in localStorage exposes them to XSS attacks.
+// For higher security requirements, consider using httpOnly cookies via a backend proxy.
 const STORAGE_KEYS = {
   ACCESS_TOKEN: "doc2slides_access_token",
   USER_INFO: "doc2slides_user_info",
   TOKEN_EXPIRY: "doc2slides_token_expiry",
 };
+
+// Token expiry buffer (60 seconds) to account for clock skew and prevent mid-operation failures
+const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000;
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
 
 interface Slide {
   title: string;
@@ -36,38 +42,51 @@ interface UserInfo {
 }
 
 // Helper functions for OAuth persistence
-function saveAuthToStorage(token: string, userInfo: UserInfo, expiresIn: number = 3600) {
-  const expiry = Date.now() + expiresIn * 1000;
-  localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
-  localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo));
-  localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry.toString());
-}
-
-function clearAuthFromStorage() {
-  localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.USER_INFO);
-  localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
-}
-
-function getStoredAuth(): { token: string; user: UserInfo } | null {
-  const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-  const userJson = localStorage.getItem(STORAGE_KEYS.USER_INFO);
-  const expiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
-
-  if (!token || !userJson || !expiry) {
-    return null;
-  }
-
-  // Check if token has expired
-  if (Date.now() > parseInt(expiry, 10)) {
-    clearAuthFromStorage();
-    return null;
-  }
-
+function saveAuthToStorage(token: string, userInfo: UserInfo, expiresIn: number = DEFAULT_TOKEN_EXPIRY_SECONDS): boolean {
   try {
+    const expiry = Date.now() + expiresIn * 1000;
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+    localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo));
+    localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry.toString());
+    return true;
+  } catch (err) {
+    console.error("Failed to save auth to storage:", err);
+    return false;
+  }
+}
+
+function clearAuthFromStorage(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER_INFO);
+    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+  } catch (err) {
+    console.error("Failed to clear auth from storage:", err);
+  }
+}
+
+function getStoredAuth(): { token: string; user: UserInfo; expiresAt: number } | null {
+  try {
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    const userJson = localStorage.getItem(STORAGE_KEYS.USER_INFO);
+    const expiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
+
+    if (!token || !userJson || !expiry) {
+      return null;
+    }
+
+    const expiresAt = parseInt(expiry, 10);
+
+    // Check if token has expired (with buffer for clock skew)
+    if (Date.now() > expiresAt - TOKEN_EXPIRY_BUFFER_MS) {
+      clearAuthFromStorage();
+      return null;
+    }
+
     const user = JSON.parse(userJson) as UserInfo;
-    return { token, user };
-  } catch {
+    return { token, user, expiresAt };
+  } catch (err) {
+    console.error("Failed to get stored auth:", err);
     clearAuthFromStorage();
     return null;
   }
@@ -135,25 +154,16 @@ function App() {
     onSuccess: async (tokenResponse) => {
       const token = tokenResponse.access_token;
       setAccessToken(token);
-      // Fetch user info
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v3/userinfo",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        const userInfo = await userInfoResponse.json();
-        const user: UserInfo = {
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-        };
-        setUser(user);
-        // Persist auth to localStorage (default 1 hour expiry)
-        saveAuthToStorage(token, user, tokenResponse.expires_in || 3600);
-      } catch (err) {
-        console.error("Failed to fetch user info:", err);
+      // Reuse validateToken to fetch and validate user info
+      const userInfo = await validateToken(token);
+      if (userInfo) {
+        setUser(userInfo);
+        // Persist auth to localStorage
+        saveAuthToStorage(token, userInfo, tokenResponse.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS);
+      } else {
+        // Failed to get user info, clear the token
+        setAccessToken(null);
+        setError("Failed to fetch user information. Please try again.");
       }
     },
     onError: (error) => {
@@ -241,6 +251,18 @@ function App() {
       setLoading(false);
     }
   };
+
+  // Show loading state while restoring auth
+  if (authLoading) {
+    return (
+      <div className="container">
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container">

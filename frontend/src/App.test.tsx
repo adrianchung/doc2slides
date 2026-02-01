@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
@@ -211,6 +211,7 @@ describe("App", () => {
     // Mock user info fetch
     mockFetch
       .mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
@@ -249,6 +250,7 @@ describe("App", () => {
     // Mock: user info, generate preview, export
     mockFetch
       .mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
@@ -304,6 +306,7 @@ describe("App", () => {
     const user = userEvent.setup();
 
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
     });
 
@@ -321,6 +324,7 @@ describe("App", () => {
 
     mockFetch
       .mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
       })
       .mockResolvedValueOnce({
@@ -364,6 +368,223 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Failed to create presentation")).toBeInTheDocument();
+    });
+  });
+
+  // OAuth Persistence Tests
+  describe("OAuth Persistence", () => {
+    it("saves auth to localStorage on successful sign in", async () => {
+      const user = userEvent.setup();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      });
+
+      render(<App />);
+
+      await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Test User")).toBeInTheDocument();
+      });
+
+      // Verify localStorage was set
+      expect(localStorage.getItem("doc2slides_access_token")).toBe("mock-access-token");
+      expect(localStorage.getItem("doc2slides_user_info")).toContain("test@example.com");
+      expect(localStorage.getItem("doc2slides_token_expiry")).toBeTruthy();
+    });
+
+    it("restores auth from localStorage on mount when token is valid", async () => {
+      // Set up localStorage with valid auth
+      const futureExpiry = Date.now() + 3600 * 1000; // 1 hour from now
+      localStorage.setItem("doc2slides_access_token", "stored-token");
+      localStorage.setItem("doc2slides_user_info", JSON.stringify({
+        email: "stored@example.com",
+        name: "Stored User",
+        picture: "https://example.com/stored.jpg",
+      }));
+      localStorage.setItem("doc2slides_token_expiry", futureExpiry.toString());
+
+      // Mock the token validation fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          email: "stored@example.com",
+          name: "Stored User",
+          picture: "https://example.com/stored.jpg",
+        }),
+      });
+
+      render(<App />);
+
+      // Should show loading initially, then restore the user
+      await waitFor(() => {
+        expect(screen.getByText("Stored User")).toBeInTheDocument();
+      });
+
+      // Should have called Google's userinfo endpoint to validate the token
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        { headers: { Authorization: "Bearer stored-token" } }
+      );
+    });
+
+    it("clears localStorage when stored token is expired", async () => {
+      // Set up localStorage with expired auth
+      const pastExpiry = Date.now() - 1000; // 1 second ago
+      localStorage.setItem("doc2slides_access_token", "expired-token");
+      localStorage.setItem("doc2slides_user_info", JSON.stringify({
+        email: "expired@example.com",
+        name: "Expired User",
+        picture: "https://example.com/expired.jpg",
+      }));
+      localStorage.setItem("doc2slides_token_expiry", pastExpiry.toString());
+
+      render(<App />);
+
+      // Should show sign in button (not the user)
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+      });
+
+      // localStorage should be cleared
+      expect(localStorage.getItem("doc2slides_access_token")).toBeNull();
+      expect(localStorage.getItem("doc2slides_user_info")).toBeNull();
+      expect(localStorage.getItem("doc2slides_token_expiry")).toBeNull();
+    });
+
+    it("clears localStorage when stored token validation fails", async () => {
+      // Set up localStorage with auth that will fail validation
+      const futureExpiry = Date.now() + 3600 * 1000;
+      localStorage.setItem("doc2slides_access_token", "invalid-token");
+      localStorage.setItem("doc2slides_user_info", JSON.stringify({
+        email: "invalid@example.com",
+        name: "Invalid User",
+        picture: "https://example.com/invalid.jpg",
+      }));
+      localStorage.setItem("doc2slides_token_expiry", futureExpiry.toString());
+
+      // Mock validation failure (401 unauthorized)
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      render(<App />);
+
+      // Should show sign in button after validation fails
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+      });
+
+      // localStorage should be cleared
+      expect(localStorage.getItem("doc2slides_access_token")).toBeNull();
+    });
+
+    it("clears localStorage on sign out", async () => {
+      const user = userEvent.setup();
+
+      // Sign in first
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ email: "test@example.com", name: "Test User", picture: "https://example.com/pic.jpg" }),
+      });
+
+      render(<App />);
+
+      await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Test User")).toBeInTheDocument();
+      });
+
+      // Verify localStorage has auth
+      expect(localStorage.getItem("doc2slides_access_token")).toBe("mock-access-token");
+
+      // Sign out
+      await user.click(screen.getByRole("button", { name: "Sign Out" }));
+
+      // Verify localStorage is cleared
+      expect(localStorage.getItem("doc2slides_access_token")).toBeNull();
+      expect(localStorage.getItem("doc2slides_user_info")).toBeNull();
+      expect(localStorage.getItem("doc2slides_token_expiry")).toBeNull();
+
+      // Should show sign in button again
+      expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+    });
+
+    it("handles corrupted localStorage data gracefully", async () => {
+      // Set up localStorage with corrupted JSON
+      const futureExpiry = Date.now() + 3600 * 1000;
+      localStorage.setItem("doc2slides_access_token", "some-token");
+      localStorage.setItem("doc2slides_user_info", "not-valid-json{{{");
+      localStorage.setItem("doc2slides_token_expiry", futureExpiry.toString());
+
+      render(<App />);
+
+      // Should show sign in button (corrupted data should be cleared)
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+      });
+
+      // localStorage should be cleared due to JSON parse error
+      expect(localStorage.getItem("doc2slides_access_token")).toBeNull();
+    });
+
+    it("shows error when user info fetch fails during login", async () => {
+      const user = userEvent.setup();
+
+      // Mock user info fetch failure
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      render(<App />);
+
+      await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed to fetch user information. Please try again.")).toBeInTheDocument();
+      });
+
+      // Should still show sign in button
+      expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+    });
+
+    it("shows loading state while restoring auth", async () => {
+      // Set up localStorage with valid auth
+      const futureExpiry = Date.now() + 3600 * 1000;
+      localStorage.setItem("doc2slides_access_token", "stored-token");
+      localStorage.setItem("doc2slides_user_info", JSON.stringify({
+        email: "stored@example.com",
+        name: "Stored User",
+        picture: "https://example.com/stored.jpg",
+      }));
+      localStorage.setItem("doc2slides_token_expiry", futureExpiry.toString());
+
+      // Make validation take some time
+      mockFetch.mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(() => resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            email: "stored@example.com",
+            name: "Stored User",
+            picture: "https://example.com/stored.jpg",
+          }),
+        }), 100))
+      );
+
+      render(<App />);
+
+      // Should show loading initially
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+
+      // Then should show the restored user
+      await waitFor(() => {
+        expect(screen.getByText("Stored User")).toBeInTheDocument();
+      });
     });
   });
 });
