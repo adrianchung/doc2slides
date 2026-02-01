@@ -166,10 +166,10 @@ describe("App", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentContent: "Content here",
-          documentTitle: "My Doc",
           slideCount: 7,
           customPrompt: "Focus on metrics",
+          documentContent: "Content here",
+          documentTitle: "My Doc",
         }),
       });
     });

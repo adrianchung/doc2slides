@@ -8,6 +8,7 @@ Convert documents into executive-ready Google Slides presentations using AI.
 - **Slide Templates**: Choose from 5 professional templates (Modern, Corporate, Creative, Minimal, Executive)
 - **Preview Before Export**: Review AI-generated slide structure before creating the presentation
 - **Export to Google Slides**: Sign in with Google and export presentations directly to your Google Drive
+- **Import from Google Docs**: Directly import content from Google Docs URLs (requires Google sign-in)
 - **Graceful OAuth Handling**: App works without Google OAuth configured (preview-only mode)
 - **Customizable Output**: Configure number of slides (3-10) and provide custom summarization instructions
 
@@ -24,16 +25,18 @@ Convert documents into executive-ready Google Slides presentations using AI.
         │
         ▼
 ┌─────────────────┐
-│  Google OAuth   │  (Optional - required for export)
+│  Google OAuth   │  (Optional - required for export/import)
 │  - Slides API   │
 │  - Drive API    │
+│  - Docs API     │
 └─────────────────┘
 ```
 
 ### Data Flow
 
-1. User pastes document content and selects options (slide count, template)
+1. User pastes document content OR provides a Google Docs URL and selects options (slide count, template)
 2. Frontend calls `/generate/preview` to get AI-generated slide structure
+   - If using Google Docs URL, backend fetches document content via Docs API
 3. User reviews the preview and optionally signs in with Google
 4. Frontend calls `/generate` with OAuth token to create the actual presentation
 5. Backend uses Gemini API to structure content, then Google Slides API to create presentation
@@ -101,6 +104,7 @@ To enable the "Export to Google Slides" feature:
 In **APIs & Services > Library**, enable:
 - Google Slides API
 - Google Drive API
+- Google Docs API (for importing from Google Docs)
 
 ### 3. Configure OAuth Consent Screen
 
@@ -114,6 +118,7 @@ In **APIs & Services > Library**, enable:
 5. Add scopes:
    - `https://www.googleapis.com/auth/presentations`
    - `https://www.googleapis.com/auth/drive.file`
+   - `https://www.googleapis.com/auth/documents.readonly`
 6. Add test users (required while app is in "Testing" status)
 
 ### 4. Create OAuth Client ID
@@ -152,6 +157,7 @@ In **APIs & Services > Library**, enable:
 **Scopes requested:**
 - `presentations` - Create and modify Google Slides
 - `drive.file` - Access files created by the app
+- `documents.readonly` - Read Google Docs content (for import feature)
 
 ## Slide Templates
 
@@ -179,6 +185,7 @@ doc2slides/
 │   │   ├── services/
 │   │   │   ├── claude.ts    # Gemini API integration
 │   │   │   ├── slides.ts    # Google Slides API integration
+│   │   │   ├── docs.ts      # Google Docs API integration
 │   │   │   └── prompts.ts   # AI prompt templates
 │   │   ├── types/
 │   │   │   └── index.ts     # TypeScript interfaces & templates
@@ -220,14 +227,24 @@ Returns available slide templates.
 
 ### POST /generate/preview
 
-Preview AI-generated slide structure without creating a presentation. Does not require authentication.
+Preview AI-generated slide structure without creating a presentation. Does not require authentication for paste mode; requires OAuth token for Google Docs import.
 
-**Request:**
+**Request (paste mode):**
 ```json
 {
   "documentContent": "Full text content to summarize",
   "documentTitle": "Document Title",
   "slideCount": 5,
+  "customPrompt": "Focus on Q4 metrics (optional)"
+}
+```
+
+**Request (Google Docs import):**
+```json
+{
+  "googleDocsUrl": "https://docs.google.com/document/d/abc123/edit",
+  "slideCount": 5,
+  "accessToken": "Google OAuth access token",
   "customPrompt": "Focus on Q4 metrics (optional)"
 }
 ```
@@ -242,7 +259,8 @@ Preview AI-generated slide structure without creating a presentation. Does not r
       { "title": "Executive Summary", "bullets": ["Revenue up 15%", "Customer satisfaction at 92%"] },
       { "title": "Key Metrics", "bullets": ["..."] }
     ]
-  }
+  },
+  "documentTitle": "Fetched document title (when using Google Docs URL)"
 }
 ```
 
@@ -250,11 +268,23 @@ Preview AI-generated slide structure without creating a presentation. Does not r
 
 Create a Google Slides presentation. Requires Google OAuth token.
 
-**Request:**
+**Request (paste mode):**
 ```json
 {
   "documentContent": "Full text content to summarize",
   "documentTitle": "Document Title",
+  "slideCount": 5,
+  "template": "modern",
+  "customPrompt": "Focus on Q4 metrics (optional)",
+  "accessToken": "Google OAuth access token",
+  "userEmail": "user@example.com"
+}
+```
+
+**Request (Google Docs import):**
+```json
+{
+  "googleDocsUrl": "https://docs.google.com/document/d/abc123/edit",
   "slideCount": 5,
   "template": "modern",
   "customPrompt": "Focus on Q4 metrics (optional)",
@@ -305,6 +335,8 @@ npm run test:watch  # Watch mode
 - API endpoint validation (required fields, slide count limits)
 - Request/response handling
 - Template validation
+- Google Docs URL parsing and content fetching
+- Error handling for Google Docs API responses
 
 **Frontend tests cover:**
 - Component rendering

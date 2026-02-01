@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { GenerateRequest, GenerateResponse, SLIDE_TEMPLATES, SlideTemplate } from "../types/index.js";
 import { summarizeDocument } from "../services/claude.js";
 import { createPresentation } from "../services/slides.js";
+import { fetchGoogleDocsContent, DocsError } from "../services/docs.js";
 
 export const generateRouter = Router();
 
@@ -18,23 +19,63 @@ generateRouter.get("/templates", (_req: Request, res: Response) => {
 // Preview endpoint - just returns AI-generated content without creating slides
 generateRouter.post("/preview", async (req: Request, res: Response) => {
   try {
-    const { documentContent, documentTitle, slideCount, customPrompt } = req.body;
+    const { documentContent, googleDocsUrl, documentTitle, slideCount, customPrompt, accessToken } = req.body;
 
-    if (!documentContent || !documentTitle || !slideCount) {
+    // Validate: need either documentContent or googleDocsUrl
+    if (!documentContent && !googleDocsUrl) {
+      res.status(400).json({ error: "Either documentContent or googleDocsUrl is required" });
+      return;
+    }
+
+    if (!slideCount) {
+      res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+
+    let content = documentContent;
+    let title = documentTitle;
+
+    // If Google Docs URL is provided, fetch content from the document
+    if (googleDocsUrl) {
+      if (!accessToken) {
+        res.status(401).json({
+          error: "Sign in required to import from Google Docs",
+          code: "ACCESS_DENIED"
+        });
+        return;
+      }
+
+      const docsContent = await fetchGoogleDocsContent(googleDocsUrl, accessToken);
+      content = docsContent.content;
+      // Use fetched title if documentTitle not provided
+      if (!title) {
+        title = docsContent.title;
+      }
+    }
+
+    if (!title) {
       res.status(400).json({ error: "Missing required fields" });
       return;
     }
 
     const structure = await summarizeDocument({
-      content: documentContent,
-      title: documentTitle,
+      content,
+      title,
       slideCount,
       customPrompt,
     });
 
-    res.json({ success: true, structure });
+    res.json({ success: true, structure, documentTitle: title });
   } catch (error) {
     console.error("Preview error:", error);
+    if (error instanceof DocsError) {
+      res.status(error.httpStatus).json({
+        success: false,
+        error: error.message,
+        code: error.code
+      });
+      return;
+    }
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -46,11 +87,20 @@ generateRouter.post("/", async (req: Request, res: Response) => {
   try {
     const body = req.body as GenerateRequest;
 
-    // Validate required fields
-    if (!body.documentContent || !body.documentTitle || !body.slideCount) {
+    // Validate: need either documentContent or googleDocsUrl
+    if (!body.documentContent && !body.googleDocsUrl) {
       const response: GenerateResponse = {
         success: false,
-        error: "Missing required fields: documentContent, documentTitle, slideCount",
+        error: "Either documentContent or googleDocsUrl is required",
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    if (!body.slideCount) {
+      const response: GenerateResponse = {
+        success: false,
+        error: "Missing required fields: slideCount",
       };
       res.status(400).json(response);
       return;
@@ -74,10 +124,32 @@ generateRouter.post("/", async (req: Request, res: Response) => {
       return;
     }
 
+    let content = body.documentContent;
+    let title = body.documentTitle;
+
+    // If Google Docs URL is provided, fetch content from the document
+    if (body.googleDocsUrl) {
+      const docsContent = await fetchGoogleDocsContent(body.googleDocsUrl, body.accessToken);
+      content = docsContent.content;
+      // Use fetched title if documentTitle not provided
+      if (!title) {
+        title = docsContent.title;
+      }
+    }
+
+    if (!title) {
+      const response: GenerateResponse = {
+        success: false,
+        error: "Missing required fields: documentTitle",
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     // Step 1: Use Claude to summarize and structure content
     const presentationStructure = await summarizeDocument({
-      content: body.documentContent,
-      title: body.documentTitle,
+      content: content!,
+      title,
       slideCount: body.slideCount,
       customPrompt: body.customPrompt,
     });
@@ -109,6 +181,14 @@ generateRouter.post("/", async (req: Request, res: Response) => {
     res.json(response);
   } catch (error) {
     console.error("Generation error:", error);
+    if (error instanceof DocsError) {
+      const response: GenerateResponse = {
+        success: false,
+        error: error.message,
+      };
+      res.status(error.httpStatus).json(response);
+      return;
+    }
     const response: GenerateResponse = {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",

@@ -20,12 +20,28 @@ vi.mock("../services/slides.js", () => ({
   }),
 }));
 
+vi.mock("../services/docs.js", () => ({
+  fetchGoogleDocsContent: vi.fn().mockResolvedValue({
+    title: "Fetched Document Title",
+    content: "Fetched document content from Google Docs",
+  }),
+  DocsError: class DocsError extends Error {
+    code: string;
+    httpStatus: number;
+    constructor(code: string, message: string, httpStatus: number) {
+      super(message);
+      this.code = code;
+      this.httpStatus = httpStatus;
+    }
+  },
+}));
+
 describe("POST /generate", () => {
   const app = express();
   app.use(express.json());
   app.use("/generate", generateRouter);
 
-  it("should return 400 if documentContent is missing", async () => {
+  it("should return 400 if neither documentContent nor googleDocsUrl is provided", async () => {
     const response = await request(app)
       .post("/generate")
       .send({
@@ -37,7 +53,7 @@ describe("POST /generate", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.success).toBe(false);
-    expect(response.body.error).toContain("Missing required fields");
+    expect(response.body.error).toContain("Either documentContent or googleDocsUrl is required");
   });
 
   it("should return 400 if documentTitle is missing", async () => {
@@ -174,6 +190,35 @@ describe("POST /generate", () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toContain("Invalid template");
   });
+
+  it("should accept googleDocsUrl instead of documentContent", async () => {
+    const response = await request(app)
+      .post("/generate")
+      .send({
+        googleDocsUrl: "https://docs.google.com/document/d/test123/edit",
+        slideCount: 5,
+        userEmail: "test@example.com",
+        accessToken: "token",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.slidesUrl).toBeDefined();
+  });
+
+  it("should use fetched title when documentTitle not provided with googleDocsUrl", async () => {
+    const response = await request(app)
+      .post("/generate")
+      .send({
+        googleDocsUrl: "https://docs.google.com/document/d/test123/edit",
+        slideCount: 5,
+        userEmail: "test@example.com",
+        accessToken: "token",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+  });
 });
 
 describe("GET /generate/templates", () => {
@@ -211,18 +256,19 @@ describe("POST /generate/preview", () => {
   app.use(express.json());
   app.use("/generate", generateRouter);
 
-  it("should return 400 if required fields are missing", async () => {
+  it("should return 400 if neither documentContent nor googleDocsUrl is provided", async () => {
     const response = await request(app)
       .post("/generate/preview")
       .send({
         documentTitle: "Title",
+        slideCount: 5,
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toContain("Missing required fields");
+    expect(response.body.error).toContain("Either documentContent or googleDocsUrl is required");
   });
 
-  it("should return slide structure without requiring auth", async () => {
+  it("should return slide structure without requiring auth for paste mode", async () => {
     const response = await request(app)
       .post("/generate/preview")
       .send({
@@ -235,5 +281,44 @@ describe("POST /generate/preview", () => {
     expect(response.body.success).toBe(true);
     expect(response.body.structure).toBeDefined();
     expect(response.body.structure.slides).toBeInstanceOf(Array);
+  });
+
+  it("should return 401 when googleDocsUrl provided without accessToken", async () => {
+    const response = await request(app)
+      .post("/generate/preview")
+      .send({
+        googleDocsUrl: "https://docs.google.com/document/d/test123/edit",
+        slideCount: 5,
+      });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toContain("Sign in required to import from Google Docs");
+  });
+
+  it("should accept googleDocsUrl with accessToken", async () => {
+    const response = await request(app)
+      .post("/generate/preview")
+      .send({
+        googleDocsUrl: "https://docs.google.com/document/d/test123/edit",
+        slideCount: 5,
+        accessToken: "valid-token",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.structure).toBeDefined();
+    expect(response.body.documentTitle).toBe("Fetched Document Title");
+  });
+
+  it("should return 400 if slideCount is missing", async () => {
+    const response = await request(app)
+      .post("/generate/preview")
+      .send({
+        documentContent: "Content",
+        documentTitle: "Title",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("Missing required fields");
   });
 });

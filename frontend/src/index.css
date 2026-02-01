@@ -326,3 +326,63 @@ button:disabled {
   color: #666;
   font-size: 0.9rem;
 }
+
+/* Input mode toggle styles */
+.input-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.toggle-button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.toggle-button:hover:not(.active) {
+  background: #e8e8e8;
+}
+
+.toggle-button.active {
+  background: #1a73e8;
+  color: white;
+}
+
+.toggle-button:first-child {
+  border-right: 1px solid #ddd;
+}
+
+/* URL input validation styles */
+.input-error {
+  border-color: #d32f2f !important;
+  box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.1) !important;
+}
+
+.url-error-message {
+  display: block;
+  color: #d32f2f;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.url-hint {
+  display: block;
+  color: #666;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.oauth-disabled {
+  color: #999;
+  font-size: 0.875rem;
+}

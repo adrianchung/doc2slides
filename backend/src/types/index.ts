@@ -59,14 +59,25 @@ export const SLIDE_TEMPLATES: Record<SlideTemplate, TemplateConfig> = {
 };
 
 export interface GenerateRequest {
-  documentContent: string;
+  documentContent?: string;
+  googleDocsUrl?: string;
   documentTitle: string;
   slideCount: number;
   customPrompt?: string;
   template?: SlideTemplate;
   userEmail: string;
-  accessToken: string; // OAuth token from user for Slides API
+  accessToken: string; // OAuth token from user for Slides/Docs API
 }
+
+export interface GoogleDocsContent {
+  title: string;
+  content: string;
+}
+
+export type DocsErrorCode =
+  | "INVALID_URL"
+  | "DOCUMENT_NOT_FOUND"
+  | "ACCESS_DENIED";
 
 export interface GenerateResponse {
   success: boolean;

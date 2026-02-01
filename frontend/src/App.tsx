@@ -32,6 +32,7 @@ interface UserInfo {
 }
 
 type SlideTemplate = "modern" | "corporate" | "creative" | "minimal" | "executive";
+type InputMode = "paste" | "google-docs";
 
 const TEMPLATES: { id: SlideTemplate; name: string; description: string }[] = [
   { id: "modern", name: "Modern", description: "Clean, minimalist design with blue accents" },
@@ -40,6 +41,8 @@ const TEMPLATES: { id: SlideTemplate; name: string; description: string }[] = [
   { id: "minimal", name: "Minimal", description: "Simple black and white design" },
   { id: "executive", name: "Executive", description: "Traditional executive presentation style" },
 ];
+
+const GOOGLE_DOCS_URL_PATTERN = /^https:\/\/docs\.google\.com\/document\/d\/[a-zA-Z0-9_-]+/;
 
 // Custom hook that wraps Google OAuth - checks at runtime if OAuth is properly configured
 function useGoogleAuth(
@@ -56,7 +59,7 @@ function useGoogleAuth(
       console.error("Login failed:", error);
       onError("Google sign-in failed. Please try again.");
     },
-    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file",
+    scope: "https://www.googleapis.com/auth/presentations https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents.readonly",
   });
 
   // If OAuth is not configured, return wrapper that shows error
@@ -86,6 +89,11 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Input mode state
+  const [inputMode, setInputMode] = useState<InputMode>("paste");
+  const [googleDocsUrl, setGoogleDocsUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   // Google OAuth state
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -134,20 +142,27 @@ function App() {
     setError(null);
 
     try {
+      const requestBody: Record<string, unknown> = {
+        documentTitle,
+        slideCount,
+        template,
+        customPrompt: customPrompt || undefined,
+        accessToken,
+        userEmail: user.email,
+      };
+
+      if (inputMode === "google-docs") {
+        requestBody.googleDocsUrl = googleDocsUrl;
+      } else {
+        requestBody.documentContent = documentContent;
+      }
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          documentContent,
-          documentTitle,
-          slideCount,
-          template,
-          customPrompt: customPrompt || undefined,
-          accessToken,
-          userEmail: user.email,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data: ExportResponse = await response.json();
@@ -164,6 +179,20 @@ function App() {
     }
   };
 
+  const validateGoogleDocsUrl = (url: string): boolean => {
+    if (!url) return false;
+    return GOOGLE_DOCS_URL_PATTERN.test(url);
+  };
+
+  const handleGoogleDocsUrlChange = (url: string) => {
+    setGoogleDocsUrl(url);
+    if (url && !validateGoogleDocsUrl(url)) {
+      setUrlError("Please enter a valid Google Docs URL");
+    } else {
+      setUrlError(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -171,23 +200,49 @@ function App() {
     setResult(null);
 
     try {
+      const requestBody: Record<string, unknown> = {
+        slideCount,
+        customPrompt: customPrompt || undefined,
+      };
+
+      if (inputMode === "google-docs") {
+        if (!validateGoogleDocsUrl(googleDocsUrl)) {
+          setError("Please enter a valid Google Docs URL");
+          setLoading(false);
+          return;
+        }
+        if (!accessToken) {
+          setError("Please sign in with Google to import from Google Docs");
+          setLoading(false);
+          return;
+        }
+        requestBody.googleDocsUrl = googleDocsUrl;
+        requestBody.accessToken = accessToken;
+        // documentTitle is optional when using Google Docs URL (will use doc title)
+        if (documentTitle) {
+          requestBody.documentTitle = documentTitle;
+        }
+      } else {
+        requestBody.documentContent = documentContent;
+        requestBody.documentTitle = documentTitle;
+      }
+
       const response = await fetch("/api/generate/preview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          documentContent,
-          documentTitle,
-          slideCount,
-          customPrompt: customPrompt || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      const data: GenerateResponse = await response.json();
+      const data = await response.json();
 
       if (data.success) {
         setResult(data);
+        // Auto-fill title from fetched document if using Google Docs
+        if (inputMode === "google-docs" && data.documentTitle && !documentTitle) {
+          setDocumentTitle(data.documentTitle);
+        }
       } else {
         setError(data.error || "Unknown error occurred");
       }
@@ -225,28 +280,82 @@ function App() {
       <div className="main-content">
         <form onSubmit={handleSubmit} className="input-section">
           <div className="form-group">
-            <label htmlFor="title">Document Title</label>
-            <input
-              id="title"
-              type="text"
-              value={documentTitle}
-              onChange={(e) => setDocumentTitle(e.target.value)}
-              placeholder="Q4 2024 Performance Review"
-              required
-            />
+            <label>Input Source</label>
+            <div className="input-mode-toggle">
+              <button
+                type="button"
+                className={`toggle-button ${inputMode === "paste" ? "active" : ""}`}
+                onClick={() => setInputMode("paste")}
+              >
+                Paste Content
+              </button>
+              <button
+                type="button"
+                className={`toggle-button ${inputMode === "google-docs" ? "active" : ""}`}
+                onClick={() => setInputMode("google-docs")}
+              >
+                Import from Google Docs
+              </button>
+            </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="content">Document Content</label>
-            <textarea
-              id="content"
-              value={documentContent}
-              onChange={(e) => setDocumentContent(e.target.value)}
-              placeholder="Paste your document content here..."
-              rows={12}
-              required
-            />
-          </div>
+          {inputMode === "google-docs" ? (
+            <>
+              <div className="form-group">
+                <label htmlFor="googleDocsUrl">Google Docs URL</label>
+                <input
+                  id="googleDocsUrl"
+                  type="url"
+                  value={googleDocsUrl}
+                  onChange={(e) => handleGoogleDocsUrlChange(e.target.value)}
+                  placeholder="https://docs.google.com/document/d/..."
+                  className={urlError ? "input-error" : ""}
+                  required
+                />
+                {urlError && <span className="url-error-message">{urlError}</span>}
+                {!user && (
+                  <span className="url-hint">Sign in with Google to import documents</span>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="title">Document Title (Optional)</label>
+                <input
+                  id="title"
+                  type="text"
+                  value={documentTitle}
+                  onChange={(e) => setDocumentTitle(e.target.value)}
+                  placeholder="Leave blank to use document's title"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="form-group">
+                <label htmlFor="title">Document Title</label>
+                <input
+                  id="title"
+                  type="text"
+                  value={documentTitle}
+                  onChange={(e) => setDocumentTitle(e.target.value)}
+                  placeholder="Q4 2024 Performance Review"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="content">Document Content</label>
+                <textarea
+                  id="content"
+                  value={documentContent}
+                  onChange={(e) => setDocumentContent(e.target.value)}
+                  placeholder="Paste your document content here..."
+                  rows={12}
+                  required
+                />
+              </div>
+            </>
+          )}
 
           <div className="form-row">
             <div className="form-group">
@@ -290,7 +399,14 @@ function App() {
             />
           </div>
 
-          <button type="submit" disabled={loading || !documentContent || !documentTitle}>
+          <button
+            type="submit"
+            disabled={
+              loading ||
+              (inputMode === "paste" && (!documentContent || !documentTitle)) ||
+              (inputMode === "google-docs" && (!googleDocsUrl || !validateGoogleDocsUrl(googleDocsUrl) || !user))
+            }
+          >
             {loading ? "Generating..." : "Generate Slides"}
           </button>
         </form>
