@@ -292,8 +292,49 @@ describe("fetchGoogleDocsContent", () => {
     });
   });
 
-  it("should throw DocsError when Drive API fallback also fails with 404", async () => {
+  it("should fallback to public export when Drive API fails", async () => {
     global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "text/plain" },
+        text: () => Promise.resolve("Public document content"),
+      });
+
+    const result = await fetchGoogleDocsContent(
+      "https://docs.google.com/document/d/public123/edit",
+      "mock-token"
+    );
+
+    expect(result).toEqual({
+      title: "Imported Document",
+      content: "Public document content",
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://docs.google.com/document/d/public123/export?format=txt",
+      { redirect: "follow" }
+    );
+  });
+
+  it("should throw DocsError when all fallbacks fail with 404", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      })
       .mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -317,7 +358,7 @@ describe("fetchGoogleDocsContent", () => {
     }
   });
 
-  it("should throw DocsError when Drive API fallback fails with 403", async () => {
+  it("should throw DocsError when public export returns HTML (login page)", async () => {
     global.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: false,
@@ -328,6 +369,11 @@ describe("fetchGoogleDocsContent", () => {
         ok: false,
         status: 403,
         statusText: "Forbidden",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "text/html" },
+        text: () => Promise.resolve("<html>Login page</html>"),
       });
 
     try {

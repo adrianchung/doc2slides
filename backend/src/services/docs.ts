@@ -80,8 +80,58 @@ export function extractTextFromDocument(document: DocsApiResponse): string {
 }
 
 /**
+ * Fetch document content using the public export URL.
+ * This works for "anyone with the link" documents without API authentication.
+ */
+async function fetchViaPublicExport(
+  documentId: string
+): Promise<GoogleDocsContent> {
+  const exportUrl = `https://docs.google.com/document/d/${documentId}/export?format=txt`;
+
+  const response = await fetch(exportUrl, {
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new DocsError(
+        "DOCUMENT_NOT_FOUND",
+        "Document not found",
+        400
+      );
+    }
+    throw new DocsError(
+      "ACCESS_DENIED",
+      "No permission to access document. The document must be shared as 'Anyone with the link' with at least Viewer access.",
+      403
+    );
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    throw new DocsError(
+      "ACCESS_DENIED",
+      "No permission to access document. The document must be shared as 'Anyone with the link' with at least Viewer access.",
+      403
+    );
+  }
+
+  const content = await response.text();
+
+  if (!content || content.trim().length === 0) {
+    throw new DocsError(
+      "ACCESS_DENIED",
+      "Could not retrieve document content. Please ensure the document is shared as 'Anyone with the link'.",
+      403
+    );
+  }
+
+  return { title: "Imported Document", content: content.trim() };
+}
+
+/**
  * Fetch document content using the Drive API export endpoint.
- * This works for "anyone with the link" documents that the Docs API can't access.
+ * This works when the user has direct access to the document.
  */
 async function fetchViaDriveExport(
   documentId: string,
@@ -97,18 +147,7 @@ async function fetchViaDriveExport(
   );
 
   if (!metadataResponse.ok) {
-    if (metadataResponse.status === 404) {
-      throw new DocsError(
-        "DOCUMENT_NOT_FOUND",
-        "Document not found",
-        400
-      );
-    }
-    throw new DocsError(
-      "ACCESS_DENIED",
-      "No permission to access document. Make sure the document is shared with your Google account or set to 'Anyone with the link'.",
-      403
-    );
+    return fetchViaPublicExport(documentId);
   }
 
   const metadata = await metadataResponse.json();
@@ -124,11 +163,7 @@ async function fetchViaDriveExport(
   );
 
   if (!exportResponse.ok) {
-    throw new DocsError(
-      "ACCESS_DENIED",
-      "Failed to export document content",
-      403
-    );
+    return fetchViaPublicExport(documentId);
   }
 
   const content = await exportResponse.text();
